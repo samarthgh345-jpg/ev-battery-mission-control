@@ -1,0 +1,65 @@
+{
+    "_disclaimer": "Prototype risk thresholds for demonstration purposes only. These are NOT experimentally validated safety limits.",
+    "temperature_thresholds_C": {
+        "normal_max": 40.0,
+        "caution_max": 45.0,
+        "high_max": 50.0,
+        "critical_above": 50.0
+    },
+    "temperature_rate_thresholds_C_per_min": {
+        "normal_max": 0.5,
+        "caution_max": 1.5,
+        "high_max": 3.0,
+        "critical_above": 3.0
+    },
+    "hotspot_risk_thresholds_percent": {
+        "normal_max": 30,
+        "caution_max": 55,
+        "high_max": 75,
+        "critical_above": 75
+    },
+    "risk_labels": {
+        "NORMAL": {
+            "color": "#00E676",
+            "icon": "✅",
+            "description": "Operating within normal parameters"
+        },
+        "CAUTION": {
+            "color": "#FFAB00",
+            "icon": "⚡",
+            "description": "Elevated thermal conditions — monitor closely"
+        },
+        "HIGH": {
+            "color": "#FF6D00",
+            "icon": "⚠️",
+            "description": "High thermal risk — cooling intervention recommended"
+        },
+        "CRITICAL": {
+            "color": "#FF1744",
+            "icon": "🔴",
+            "description": "Critical thermal conditions — immediate action required"
+        }
+    },
+    "cooling_actions": {
+        "NORMAL": {
+            "action": "MAINTAIN COOLING",
+            "coolant_flow_percent": 10,
+            "description": "Maintain current cooling parameters"
+        },
+        "CAUTION": {
+            "action": "INCREASE COOLING",
+            "coolant_flow_percent": 20,
+            "description": "Increase coolant flow rate"
+        },
+        "HIGH": {
+            "action": "HIGH COOLING",
+            "coolant_flow_percent": 35,
+            "description": "Activate high-performance cooling"
+        },
+        "CRITICAL": {
+            "action": "EMERGENCY COOLING",
+            "coolant_flow_percent": 50,
+            "description": "Emergency cooling protocol — maximum flow"
+        }
+    }
+}

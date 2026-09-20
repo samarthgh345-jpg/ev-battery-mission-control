@@ -1,0 +1,31 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environments
+.env
+.env.*
+!.env.example
+.venv/
+env/
+venv/
+
+# Streamlit
+.streamlit/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs / Temp
+*.log
+screenshots/
+streamlit.log
