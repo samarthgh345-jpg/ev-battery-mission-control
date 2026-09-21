@@ -21,10 +21,12 @@ class LimeThermalExplainer:
         self.model = model
         self.feature_names = FEATURE_COLUMNS
         
-        # LIME needs a numpy 2d array of training data. 
-        # We pass it the RAW data, not scaled, so the explanations are in original units.
+        # Add tiny noise to avoid zero variance (fixes scipy truncnorm error)
+        bg_values = background_data[FEATURE_COLUMNS].values.astype(float)
+        bg_values += np.random.normal(0, 1e-6, bg_values.shape)
+
         self.explainer = lime.lime_tabular.LimeTabularExplainer(
-            training_data=background_data[FEATURE_COLUMNS].values,
+            training_data=bg_values,
             feature_names=self.feature_names,
             mode="classification", # We are predicting failure probability
             class_names=["Normal", "Failure"],

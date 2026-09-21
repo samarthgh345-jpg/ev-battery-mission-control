@@ -58,9 +58,12 @@ def explain_local(explainer, model: MLPPredictor, features: dict) -> dict:
     shap_values = shap_values[0] # Take first (and only) observation
     
     # Expected value from explainer
-    base_value = float(explainer.expected_value) if hasattr(explainer, "expected_value") and explainer.expected_value is not None else 0.0
-    if isinstance(base_value, np.ndarray):
-        base_value = float(base_value[0])
+    base_value = 0.0
+    if hasattr(explainer, "expected_value") and explainer.expected_value is not None:
+        if isinstance(explainer.expected_value, np.ndarray):
+            base_value = float(explainer.expected_value[0])
+        else:
+            base_value = float(explainer.expected_value)
         
     predicted_logit = base_value + float(np.sum(shap_values))
     predicted_prob = 1.0 / (1.0 + np.exp(-predicted_logit))
@@ -68,12 +71,13 @@ def explain_local(explainer, model: MLPPredictor, features: dict) -> dict:
     display_names = get_feature_display_names()
 
     contributions = []
+    shap_values_flat = np.squeeze(shap_values)
     for i, feat in enumerate(FEATURE_COLUMNS):
         contributions.append({
             "feature": feat,
             "display_name": display_names.get(feat, feat),
             "value": round(float(features.get(feat, 0)), 4),
-            "shap_value": round(float(shap_values[i]), 4),
+            "shap_value": round(float(shap_values_flat[i]), 4),
         })
 
     # Sort by absolute SHAP value
