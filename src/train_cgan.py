@@ -1,45 +1,43 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.impute import SimpleImputer
 import os
 import joblib
 
-from models.cgan import Generator, Discriminator
+from src.models.cgan import Generator, Discriminator
+from src.preprocessing import load_dataset, FEATURE_COLUMNS, TARGET_COLUMN
 
 def train():
     print("Loading dataset for cGAN...")
-    df = pd.read_csv("data/btms_dataset.csv")
+    df = load_dataset("data/ev_battery_failure_dataset.csv")
     
-    features = [
-        "battery_current_A", "battery_voltage_V", "state_of_charge_percent",
-        "ambient_temperature_C", "battery_temperature_C", "coolant_inlet_temperature_C",
-        "coolant_flow_rate_kg_s", "coolant_pressure_Pa", "nanoparticle_concentration_percent",
-        "reynolds_number", "heat_transfer_coefficient_W_m2K", "microchannel_width_mm",
-        "microchannel_height_mm", "discharge_rate_C"
-    ]
+    # Filter out NaNs in target just in case, but normally it has none
+    df = df.dropna(subset=[TARGET_COLUMN])
     
-    # Map thermal_risk_label to ints
-    label_map = {"NORMAL": 0, "CAUTION": 1, "HIGH": 2, "CRITICAL": 3}
-    df["label"] = df["thermal_risk_label"].map(label_map)
-    df = df.dropna(subset=["label"])
+    X = df[FEATURE_COLUMNS].values
+    y = df[TARGET_COLUMN].values.astype(int)
     
-    X = df[features].values
-    y = df["label"].values.astype(int)
-    
+    imputer = SimpleImputer(strategy='median')
     scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
+    
+    X_imputed = imputer.fit_transform(X)
+    X_scaled = scaler.fit_transform(X_imputed)
     
     dataset = TensorDataset(torch.FloatTensor(X_scaled), torch.LongTensor(y))
-    dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
+    # Larger batch size
+    dataloader = DataLoader(dataset, batch_size=256, shuffle=True)
     
     noise_dim = 16
-    num_classes = 4
-    feature_dim = len(features)
+    num_classes = 2 # 0: NORMAL, 1: FAILURE
+    feature_dim = len(FEATURE_COLUMNS)
     
     generator = Generator(noise_dim, num_classes, feature_dim)
     discriminator = Discriminator(num_classes, feature_dim)
@@ -48,7 +46,7 @@ def train():
     opt_g = optim.Adam(generator.parameters(), lr=0.0002, betas=(0.5, 0.999))
     opt_d = optim.Adam(discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999))
     
-    epochs = 20
+    epochs = 10 # Reduced epochs for rapid prototyping
     print("Training Conditional GAN...")
     for epoch in range(epochs):
         g_loss_total = 0
@@ -86,12 +84,12 @@ def train():
             d_loss_total += d_loss.item()
             g_loss_total += g_loss.item()
             
-        if (epoch+1) % 5 == 0:
-            print(f"Epoch {epoch+1}/{epochs} | D Loss: {d_loss_total/len(dataloader):.4f} | G Loss: {g_loss_total/len(dataloader):.4f}")
+        print(f"Epoch {epoch+1}/{epochs} | D Loss: {d_loss_total/len(dataloader):.4f} | G Loss: {g_loss_total/len(dataloader):.4f}")
 
     os.makedirs("models/cgan", exist_ok=True)
     torch.save(generator.state_dict(), "models/cgan/generator.pt")
     torch.save(discriminator.state_dict(), "models/cgan/discriminator.pt")
+    joblib.dump(imputer, "models/cgan/imputer.pkl")
     joblib.dump(scaler, "models/cgan/scaler.pkl")
     print("Saved cGAN models/cgan/generator.pt")
 

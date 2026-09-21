@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pandas as pd
 import numpy as np
 import torch
@@ -6,41 +9,40 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.impute import SimpleImputer
 import os
 import joblib
 
-from models.autoencoder import ThermalAutoencoder
+from src.models.autoencoder import ThermalAutoencoder
+from src.preprocessing import load_dataset, FEATURE_COLUMNS, TARGET_COLUMN
 
 def train():
     print("Loading dataset for Autoencoder...")
-    df = pd.read_csv("data/btms_dataset.csv")
+    df = load_dataset("data/ev_battery_failure_dataset.csv")
     
-    features = [
-        "battery_current_A", "battery_voltage_V", "state_of_charge_percent",
-        "ambient_temperature_C", "battery_temperature_C", "coolant_inlet_temperature_C",
-        "coolant_flow_rate_kg_s", "coolant_pressure_Pa", "nanoparticle_concentration_percent",
-        "reynolds_number", "heat_transfer_coefficient_W_m2K", "microchannel_width_mm",
-        "microchannel_height_mm", "discharge_rate_C"
-    ]
-    
-    # Train primary on NORMAL data for anomaly detection
-    normal_df = df[df["thermal_risk_label"] == "NORMAL"]
+    # Train primarily on NORMAL data for anomaly detection
+    normal_df = df[df[TARGET_COLUMN] == 0]
     if len(normal_df) < 100:
         print("Warning: Not enough NORMAL data. Using all data.")
-        X = df[features].values
+        X = df[FEATURE_COLUMNS]
     else:
-        X = normal_df[features].values
+        X = normal_df[FEATURE_COLUMNS]
         
     X_train, X_test = train_test_split(X, test_size=0.2, random_state=42)
     
+    imputer = SimpleImputer(strategy='median')
     scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
+    
+    X_train_imputed = imputer.fit_transform(X_train)
+    X_train_scaled = scaler.fit_transform(X_train_imputed)
+    
+    X_test_imputed = imputer.transform(X_test)
+    X_test_scaled = scaler.transform(X_test_imputed)
     
     train_dataset = TensorDataset(torch.FloatTensor(X_train_scaled), torch.FloatTensor(X_train_scaled))
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True)
     
-    model = ThermalAutoencoder(input_dim=len(features))
+    model = ThermalAutoencoder(input_dim=len(FEATURE_COLUMNS))
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     
@@ -68,6 +70,7 @@ def train():
         
     os.makedirs("models/autoencoder", exist_ok=True)
     torch.save(model.state_dict(), "models/autoencoder/ae.pt")
+    joblib.dump(imputer, "models/autoencoder/imputer.pkl")
     joblib.dump(scaler, "models/autoencoder/scaler.pkl")
     with open("models/autoencoder/threshold.txt", "w") as f:
         f.write(str(threshold))

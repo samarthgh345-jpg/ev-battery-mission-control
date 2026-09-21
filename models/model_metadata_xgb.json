@@ -1,0 +1,36 @@
+{
+    "model_type": "XGBoost Classifier (Baseline)",
+    "dataset": "200K EV Battery Failure Dataset",
+    "disclaimer": "Prototype model trained on synthetic data. Not experimentally validated.",
+    "target": "battery_failure",
+    "features": [
+        "cycle_count",
+        "state_of_charge",
+        "depth_of_discharge",
+        "cell_voltage_avg",
+        "cell_voltage_std",
+        "cell_temperature_avg",
+        "cell_temperature_max",
+        "internal_resistance",
+        "charge_efficiency",
+        "fast_charge_ratio",
+        "average_charge_power_kw",
+        "charging_interruptions",
+        "cooling_system_health",
+        "average_ambient_temperature"
+    ],
+    "n_features": 14,
+    "n_train_samples": 160000,
+    "n_test_samples": 40000,
+    "n_total_samples": 200000,
+    "test_size": 0.2,
+    "metrics": {
+        "Accuracy": 0.9168,
+        "Precision": 0.5482,
+        "Recall": 0.9383,
+        "F1_Score": 0.692,
+        "ROC_AUC": 0.9789,
+        "PR_AUC": 0.8543
+    },
+    "trained_at": "2026-09-21T20:11:18.675860"
+}

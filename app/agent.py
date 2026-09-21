@@ -1,7 +1,7 @@
 """
 Thermal AI Agent — Simulated Decision Loop
 ============================================
-Simulates thermal stress events and agentic response strategies.
+Simulates failure stress events and LangGraph agentic response strategies.
 """
 
 import streamlit as st
@@ -12,7 +12,7 @@ from src.simulation_engine import get_simulation_state
 from src.thermal_agent_graph import run_agent_graph
 from app.ui_components import page_header, section_header, CHART_LAYOUT, metric_card, info_panel, warning_panel, render_html
 
-def render(xgb_model, iso_model, shap_explainer, metadata, dataset):
+def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, dataset):
     page_header("Thermal AI Agent", "Agentic Decision Loop & Strategy Simulation")
 
     info_panel("Simulated thermal stress event. The LangGraph agent evaluates options using XGBoost and MLP deterministic models.")
@@ -28,7 +28,7 @@ def render(xgb_model, iso_model, shap_explainer, metadata, dataset):
     with col_info:
         st.markdown("""
         <div style="font-size:13px; color:var(--text-2); padding-top:6px;">
-            Simulates a rapid temperature spike. The agent will observe, predict the 5-minute outcome, evaluate cooling options, and apply the optimal strategy.
+            Simulates a rapid thermal spike. The agent will observe, predict the failure probability, evaluate cooling options, and apply the optimal strategy.
         </div>
         """, unsafe_allow_html=True)
 
@@ -40,10 +40,9 @@ def render(xgb_model, iso_model, shap_explainer, metadata, dataset):
     if run_det:
         start_state = get_simulation_state("THERMAL_STRESS", step=6, seed=42)
         with st.spinner("Running determinism check..."):
-            mlp_model = load_mlp_model()
-            state1 = run_agent_graph(xgb_model, iso_model, mlp_model, start_state)
-            state2 = run_agent_graph(xgb_model, iso_model, mlp_model, start_state)
-            state3 = run_agent_graph(xgb_model, iso_model, mlp_model, start_state)
+            state1 = run_agent_graph(xgb_model, ae_model_artifacts, mlp_model, start_state)
+            state2 = run_agent_graph(xgb_model, ae_model_artifacts, mlp_model, start_state)
+            state3 = run_agent_graph(xgb_model, ae_model_artifacts, mlp_model, start_state)
             
             # Compare key fields
             fields = ['xgb_prediction', 'mlp_prediction', 'anomaly_label', 'risk_level', 'selected_action', 'decision_reason']
@@ -63,8 +62,7 @@ def render(xgb_model, iso_model, shap_explainer, metadata, dataset):
     start_state = get_simulation_state("THERMAL_STRESS", step=6, seed=42)
     
     with st.spinner("Running LangGraph Workflow..."):
-        mlp_model = load_mlp_model()
-        agent_state = run_agent_graph(xgb_model, iso_model, mlp_model, start_state)
+        agent_state = run_agent_graph(xgb_model, ae_model_artifacts, mlp_model, start_state)
         
         # Sync with Mission Control
         st.session_state.mc_features = start_state
@@ -128,14 +126,14 @@ def render(xgb_model, iso_model, shap_explainer, metadata, dataset):
     timeline_html = '<div class="agent-timeline">'
     
     # 1. Observe
-    timeline_html += f"<div class=\"agent-node\"><div class=\"agent-node-title\">Node: Observe</div><div class=\"agent-node-body\">Received 14-feature BTMS sensor vector.<br>Initial battery temperature: <b>{agent_state['sensor_data']['battery_temperature_C']:.1f}°C</b></div></div>"
+    timeline_html += f"<div class=\"agent-node\"><div class=\"agent-node-title\">Node: Observe</div><div class=\"agent-node-body\">Received 14-feature BTMS sensor vector.<br>Initial average cell temperature: <b>{agent_state['sensor_data']['cell_temperature_avg']:.1f}°C</b></div></div>"
     
     # 2. Predict
-    timeline_html += f"<div class=\"agent-node\"><div class=\"agent-node-title\">Node: Predict</div><div class=\"agent-node-body\">XGBoost Prediction: <b>{agent_state['xgb_prediction']:.1f}°C</b><br>MLP Prediction: <b>{agent_state['mlp_prediction']:.1f}°C</b><br>Anomaly Status: <b>{agent_state['anomaly_label']}</b> (Score: {agent_state['anomaly_score']:.2f})</div></div>"
+    timeline_html += f"<div class=\"agent-node\"><div class=\"agent-node-title\">Node: Predict</div><div class=\"agent-node-body\">XGBoost Probability: <b>{agent_state['xgb_prediction']*100:.1f}%</b><br>MLP Probability: <b>{agent_state['mlp_prediction']*100:.1f}%</b><br>Anomaly Status: <b>{agent_state['anomaly_label']}</b> (Score: {agent_state['anomaly_score']:.4f})</div></div>"
     
     # 3. Evaluate Risk
     risk_color = "#16A34A" if agent_state['risk_level'] == "NORMAL" else "#D97706" if agent_state['risk_level'] == "CAUTION" else "#DC2626"
-    timeline_html += f"<div class=\"agent-node\"><div class=\"agent-node-title\">Node: Evaluate Risk</div><div class=\"agent-node-body\">Assessed Risk Level: <span class=\"risk-badge-agent\" style=\"background-color: {risk_color};\">{agent_state['risk_level']}</span></div></div>"
+    timeline_html += f"<div class=\"agent-node\"><div class=\"agent-node-title\">Node: Evaluate Risk</div><div class=\"agent-node-body\">Assessed Failure Risk Level: <span class=\"risk-badge-agent\" style=\"background-color: {risk_color};\">{agent_state['risk_level']}</span></div></div>"
     
     # 4. Simulate & Compare
     sim_rows = ""
@@ -144,9 +142,9 @@ def render(xgb_model, iso_model, shap_explainer, metadata, dataset):
         selected = opt['action'] == agent_state['selected_action']
         sel_style = "background-color: #DBEAFE; font-weight:600;" if selected else ""
         
-        sim_rows += f"<tr style=\"border-bottom:1px solid var(--border-light); {sel_style}\"><td style=\"padding:8px 4px;\">{opt['action']}</td><td style=\"padding:8px 4px; font-family:var(--mono);\">{opt['predicted_temp']:.1f}°C</td><td style=\"padding:8px 4px;\"><span class=\"risk-badge-agent\" style=\"background-color: {r_col};\">{opt['risk_level']}</span></td><td style=\"padding:8px 4px;\">{opt['energy_cost']}</td><td style=\"padding:8px 4px;\">{'Yes' if selected else 'No'}</td></tr>"
+        sim_rows += f"<tr style=\"border-bottom:1px solid var(--border-light); {sel_style}\"><td style=\"padding:8px 4px;\">{opt['action']}</td><td style=\"padding:8px 4px; font-family:var(--mono);\">{opt['predicted_temp']*100:.1f}%</td><td style=\"padding:8px 4px;\"><span class=\"risk-badge-agent\" style=\"background-color: {r_col};\">{opt['risk_level']}</span></td><td style=\"padding:8px 4px;\">{opt['energy_cost']}</td><td style=\"padding:8px 4px;\">{'Yes' if selected else 'No'}</td></tr>"
         
-    timeline_html += f"<div class=\"agent-node\"><div class=\"agent-node-title\">Node: Simulate & Compare Candidates (Deterministic)</div><div class=\"agent-node-body\" style=\"padding: 0;\"><table style=\"width:100%; border-collapse:collapse; font-size:12px; text-align:left;\"><tr style=\"border-bottom:1px solid var(--border); color:var(--text-3); background:var(--bg-color);\"><th style=\"padding:8px 4px;\">Action</th><th style=\"padding:8px 4px;\">Predicted Result</th><th style=\"padding:8px 4px;\">Risk Level</th><th style=\"padding:8px 4px;\">Energy Cost</th><th style=\"padding:8px 4px;\">Selected</th></tr>{sim_rows}</table></div></div>"
+    timeline_html += f"<div class=\"agent-node\"><div class=\"agent-node-title\">Node: Simulate & Compare Candidates (Deterministic)</div><div class=\"agent-node-body\" style=\"padding: 0;\"><table style=\"width:100%; border-collapse:collapse; font-size:12px; text-align:left;\"><tr style=\"border-bottom:1px solid var(--border); color:var(--text-3); background:var(--bg-color);\"><th style=\"padding:8px 4px;\">Action</th><th style=\"padding:8px 4px;\">Predicted Probability</th><th style=\"padding:8px 4px;\">Risk Level</th><th style=\"padding:8px 4px;\">Energy Cost</th><th style=\"padding:8px 4px;\">Selected</th></tr>{sim_rows}</table></div></div>"
     
     # 5. Decide & Apply
     timeline_html += f"<div class=\"agent-node\"><div class=\"agent-node-title\">Node: Decide & Apply</div><div class=\"agent-node-body\"><div style=\"font-size: 14px; font-weight:600; color:var(--primary); margin-bottom: 8px;\">Recommended Action: {agent_state['selected_action']}</div><div><strong>Reason:</strong> {agent_state['decision_reason']}</div><div style=\"color:#16A34A; margin-top:8px; font-weight:600;\">[Simulation Only - State updated]</div></div></div>"

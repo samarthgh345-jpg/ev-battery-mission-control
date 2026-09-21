@@ -2,40 +2,22 @@
 Hotspot Risk Estimation
 ========================
 Estimates hotspot risk score and generates a simulated cell temperature grid
-for the digital twin visualization.
-
-DISCLAIMER: This is a simulated/estimated hotspot risk based on operating
-conditions. It is NOT based on actual cell-level thermal measurements.
+for the digital twin visualization based on avg and max cell temperatures.
 """
 
 import numpy as np
 
-
 def estimate_hotspot_risk(
-    current_temp: float,
-    battery_current: float,
-    discharge_rate: float,
-    coolant_flow: float,
-    ambient_temp: float,
+    cell_temp_avg: float,
+    cell_temp_max: float
 ) -> dict:
     """
-    Estimate hotspot risk score from operating conditions.
-
-    Returns:
-        {
-            "hotspot_risk_percent": float (0-100),
-            "status": "LOW" | "MODERATE" | "ELEVATED" | "HIGH" | "CRITICAL",
-            "color": str
-        }
+    Estimate hotspot risk from temperature variance.
     """
-    # Normalized contributions
-    temp_factor = max(0, (current_temp - 35) / 25) * 35
-    current_factor = (battery_current / 15) * 20
-    discharge_factor = (discharge_rate / 5) * 15
-    flow_penalty = max(0, (0.025 - coolant_flow) / 0.025) * 15
-    ambient_factor = max(0, (ambient_temp - 25) / 20) * 15
-
-    risk = temp_factor + current_factor + discharge_factor + flow_penalty + ambient_factor
+    variance = cell_temp_max - cell_temp_avg
+    
+    # Normalized risk based on variance (0-5C is normal, >10C is critical)
+    risk = (variance / 15.0) * 100
     risk = max(0, min(100, risk))
 
     if risk < 20:
@@ -57,46 +39,29 @@ def estimate_hotspot_risk(
 
 
 def generate_cell_temperature_grid(
-    base_temp: float,
-    hotspot_risk_percent: float,
+    cell_temp_avg: float,
+    cell_temp_max: float,
     rows: int = 3,
     cols: int = 4,
     seed: int = None,
 ) -> np.ndarray:
     """
     Generate a simulated cell temperature grid for digital twin visualization.
-
-    This is a SIMULATED cell thermal map — not based on actual cell-level
-    thermal sensor data.
-
-    The grid creates a realistic-looking temperature distribution where
-    cells near the center tend to be warmer, with one "hotspot" cell
-    whose temperature is influenced by the hotspot risk score.
     """
     rng = np.random.default_rng(seed)
 
-    grid = np.full((rows, cols), base_temp, dtype=float)
+    # Base grid at average temperature
+    grid = np.full((rows, cols), cell_temp_avg, dtype=float)
 
-    # Add spatial variation (center cells warmer)
-    for r in range(rows):
-        for c in range(cols):
-            dist_from_center = abs(r - rows / 2 + 0.5) + abs(c - cols / 2 + 0.5)
-            max_dist = rows / 2 + cols / 2
-            spatial_factor = 1 - (dist_from_center / max_dist) * 0.5
-            grid[r, c] += rng.normal(0, 1.0) + spatial_factor * 3
-
-    # Add a "hotspot" cell proportional to risk
-    if hotspot_risk_percent > 30:
-        # Hotspot tends to be near center
-        hot_r, hot_c = rows // 2, cols // 2
-        hotspot_boost = (hotspot_risk_percent / 100) * 8
-        grid[hot_r, hot_c] += hotspot_boost
-
-    # Add minor noise
+    # Add minor noise around average
     grid += rng.normal(0, 0.5, (rows, cols))
 
-    # Shift grid so its max exactly equals base_temp
-    current_max = grid.max()
-    grid = grid - (current_max - base_temp)
+    # Add a "hotspot" cell at exactly the max temperature
+    hot_r, hot_c = rows // 2, cols // 2
+    grid[hot_r, hot_c] = cell_temp_max
+    
+    # Ensure average doesn't drift too far, though in a 12 cell pack,
+    # if one cell is max, others must be slightly lower than average to maintain true average.
+    # We ignore strict arithmetic average for the sake of the visualization feeling intuitive.
 
     return np.round(grid, 1)

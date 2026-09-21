@@ -9,8 +9,8 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
-from xgboost import XGBRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from xgboost import XGBClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, average_precision_score, confusion_matrix
 import joblib
 
 from src.preprocessing import (
@@ -22,10 +22,15 @@ from src.preprocessing import (
 )
 
 
-def train_xgboost_model(X_train: pd.DataFrame, y_train: pd.Series) -> XGBRegressor:
-    """Train an XGBoost regressor."""
-    model = XGBRegressor(
-        n_estimators=300,
+def train_xgboost_model(X_train: pd.DataFrame, y_train: pd.Series) -> XGBClassifier:
+    """Train an XGBoost classifier."""
+    # Calculate scale_pos_weight
+    num_pos = y_train.sum()
+    num_neg = len(y_train) - num_pos
+    scale_pos_weight = num_neg / num_pos if num_pos > 0 else 1.0
+
+    model = XGBClassifier(
+        n_estimators=100,
         max_depth=6,
         learning_rate=0.08,
         subsample=0.8,
@@ -33,6 +38,7 @@ def train_xgboost_model(X_train: pd.DataFrame, y_train: pd.Series) -> XGBRegress
         min_child_weight=3,
         reg_alpha=0.1,
         reg_lambda=1.0,
+        scale_pos_weight=scale_pos_weight,
         random_state=42,
         n_jobs=-1,
     )
@@ -41,24 +47,26 @@ def train_xgboost_model(X_train: pd.DataFrame, y_train: pd.Series) -> XGBRegress
 
 
 def evaluate_model(
-    model: XGBRegressor, X_test: pd.DataFrame, y_test: pd.Series
+    model: XGBClassifier, X_test: pd.DataFrame, y_test: pd.Series
 ) -> dict:
     """Compute evaluation metrics on the test set."""
     y_pred = model.predict(X_test)
-    mae = mean_absolute_error(y_test, y_pred)
-    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-    r2 = r2_score(y_test, y_pred)
+    y_prob = model.predict_proba(X_test)[:, 1]
+    
     return {
-        "MAE": round(float(mae), 4),
-        "RMSE": round(float(rmse), 4),
-        "R2": round(float(r2), 4),
+        "Accuracy": round(float(accuracy_score(y_test, y_pred)), 4),
+        "Precision": round(float(precision_score(y_test, y_pred)), 4),
+        "Recall": round(float(recall_score(y_test, y_pred)), 4),
+        "F1_Score": round(float(f1_score(y_test, y_pred)), 4),
+        "ROC_AUC": round(float(roc_auc_score(y_test, y_prob)), 4),
+        "PR_AUC": round(float(average_precision_score(y_test, y_prob)), 4),
     }
 
 
-def save_model(model: XGBRegressor, model_dir: Path) -> Path:
+def save_model(model: XGBClassifier, model_dir: Path) -> Path:
     """Save trained model to disk."""
     model_dir.mkdir(parents=True, exist_ok=True)
-    model_path = model_dir / "xgboost_temperature_model.joblib"
+    model_path = model_dir / "xgboost_failure_model.joblib"
     joblib.dump(model, model_path)
     return model_path
 
@@ -74,8 +82,8 @@ def save_metadata(
 ) -> Path:
     """Save model metadata and metrics."""
     metadata = {
-        "model_type": "XGBoost Regressor",
-        "dataset": "Synthetic / Simulation-Inspired BTMS Dataset",
+        "model_type": "XGBoost Classifier (Baseline)",
+        "dataset": "200K EV Battery Failure Dataset",
         "disclaimer": "Prototype model trained on synthetic data. Not experimentally validated.",
         "target": TARGET_COLUMN,
         "features": feature_names,
@@ -87,11 +95,8 @@ def save_metadata(
         "metrics": metrics,
         "trained_at": datetime.now().isoformat(),
     }
-    if y_test is not None and y_pred is not None:
-        metadata["test_actual"] = [round(float(v), 4) for v in y_test.values.tolist()]
-        metadata["test_predicted"] = [round(float(v), 4) for v in y_pred.tolist()]
 
-    meta_path = model_dir / "model_metadata.json"
+    meta_path = model_dir / "model_metadata_xgb.json"
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=4)
     return meta_path

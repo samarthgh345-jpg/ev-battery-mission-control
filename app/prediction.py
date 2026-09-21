@@ -1,29 +1,26 @@
 """
 Thermal Analysis — Live Monitoring & Forecasting Page
 =====================================================
-Temperature forecasting, live sensor simulation, and real-time charts.
+Failure probability forecasting, live sensor simulation, and real-time charts.
 """
 
 import streamlit as st
 import time
 import numpy as np
 import plotly.graph_objects as go
-from src.prediction_engine import predict_temperature, get_default_features
-from src.forecasting import forecast_temperatures
+from src.prediction_engine import predict_failure_probability, get_default_features
+from src.forecasting import forecast_failure_probability
 from src.anomaly_detection import detect_anomaly
-from src.risk_engine import assess_thermal_risk
 from src.simulation_engine import get_simulation_state
 from app.ui_components import page_header, CHART_LAYOUT
 
 _CHART_LAYOUT = CHART_LAYOUT.copy()
-# Remove keys that each chart overrides explicitly to avoid 'multiple values' errors
 _CHART_LAYOUT.pop("margin", None)
 _CHART_LAYOUT.pop("xaxis", None)
 _CHART_LAYOUT.pop("yaxis", None)
 _AXIS = dict(color="#9CA3AF", gridcolor="#F3F4F6", linecolor="#E5E7EB", showgrid=True)
 
-
-def render(xgb_model, iso_model, metadata, dataset):
+def render(xgb_model, ae_model_artifacts, mlp_model, metadata, dataset):
     page_header("Thermal Analysis", "Real-Time Monitoring & Forecasting Engine")
 
     # ── Simulation Controls ────────────────────────
@@ -68,6 +65,8 @@ def render(xgb_model, iso_model, metadata, dataset):
 
     st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
+    ae_model, ae_scaler, ae_imputer, ae_threshold = ae_model_artifacts
+
     # ── Live Simulation Loop ───────────────────────
     if is_running or is_completed:
         step = st.session_state.get("pred_step", 0)
@@ -75,28 +74,25 @@ def render(xgb_model, iso_model, metadata, dataset):
 
         # Generate current sensor state
         features = get_simulation_state(sim_mode, step)
-        predicted_temp = predict_temperature(xgb_model, features)
-
-        # Trend for forecasting
-        if len(history) >= 2:
-            trend_rate = (history[-1]["temp"] - history[-2]["temp"])
-        else:
-            trend_rate = 0.3 if sim_mode != "NORMAL" else 0.0
+        predicted_prob = predict_failure_probability(mlp_model, features)
 
         trend = {
-            "battery_current_A": 0.1 if sim_mode == "THERMAL_STRESS" else 0.05,
-            "ambient_temperature_C": 0.1 if sim_mode == "THERMAL_STRESS" else 0.02,
-            "battery_temperature_C": max(0, trend_rate),
-            "coolant_flow_rate_kg_s": -0.0003 if sim_mode == "THERMAL_STRESS" else 0.0,
-            "discharge_rate_C": 0.05,
+            "cell_temperature_avg": 0.5 if sim_mode == "THERMAL_STRESS" else 0.1,
+            "cell_temperature_max": 0.8 if sim_mode == "THERMAL_STRESS" else 0.1,
+            "internal_resistance": 0.05 if sim_mode == "THERMAL_STRESS" else 0.01,
+            "cooling_system_health": -1.0 if sim_mode == "THERMAL_STRESS" else -0.1,
         }
 
-        forecasts = forecast_temperatures(xgb_model, features, trend=trend)
-        anomaly_features = {**features, "max_battery_temperature_C": predicted_temp}
-        anomaly = detect_anomaly(iso_model, anomaly_features) if iso_model else {"label": "NORMAL", "score": 0}
-        risk = assess_thermal_risk(predicted_temp, forecasts[-1]["predicted_C"], temp_rate_per_min=trend_rate)
+        forecasts = forecast_failure_probability(mlp_model, features, trend=trend)
+        anomaly = detect_anomaly(ae_model, ae_scaler, ae_imputer, ae_threshold, features)
+        
+        # Calculate Risk
+        if predicted_prob > 0.8: risk_level = "CRITICAL"
+        elif predicted_prob > 0.4: risk_level = "HIGH"
+        elif predicted_prob > 0.15: risk_level = "CAUTION"
+        else: risk_level = "NORMAL"
 
-        history.append({"step": step, "temp": predicted_temp, "time": step * 2})
+        history.append({"step": step, "prob": predicted_prob * 100, "time": step * 2})
         if len(history) > 60:
             history = history[-60:]
         st.session_state.pred_history = history
@@ -109,12 +105,12 @@ def render(xgb_model, iso_model, metadata, dataset):
         # ── Sensor Gauges ──────────────────────────
         cols = st.columns(6)
         gauges = [
-            ("Current", f"{features['battery_current_A']:.1f} A"),
-            ("Voltage", f"{features['battery_voltage_V']:.2f} V"),
-            ("Battery Temp", f"{predicted_temp:.1f}°C"),
-            ("Ambient", f"{features['ambient_temperature_C']:.1f}°C"),
-            ("Coolant Flow", f"{features['coolant_flow_rate_kg_s']:.4f} kg/s"),
-            ("Inlet Temp", f"{features['coolant_inlet_temperature_C']:.1f}°C"),
+            ("Avg Temp", f"{features['cell_temperature_avg']:.1f} °C"),
+            ("Max Temp", f"{features['cell_temperature_max']:.1f} °C"),
+            ("Charge Power", f"{features['average_charge_power_kw']:.1f} kW"),
+            ("SOC", f"{features['state_of_charge']:.1f} %"),
+            ("Resistance", f"{features['internal_resistance']:.2f} Ω"),
+            ("Cooling Health", f"{features['cooling_system_health']:.1f} %"),
         ]
         for col, (label, value) in zip(cols, gauges):
             with col:
@@ -122,29 +118,29 @@ def render(xgb_model, iso_model, metadata, dataset):
 
         st.markdown('<div class="section-divider"></div>', unsafe_allow_html=True)
 
-        # ── Temperature Chart ──────────────────────
+        # ── Probability Chart ──────────────────────
         col_chart, col_pred = st.columns([2, 1])
 
         with col_chart:
-            st.markdown('<div class="eng-card-header">Real-Time Temperature Monitor</div>', unsafe_allow_html=True)
+            st.markdown('<div class="eng-card-header">Real-Time Failure Probability Monitor</div>', unsafe_allow_html=True)
             fig = go.Figure()
             times = [h["time"] for h in history]
-            temps = [h["temp"] for h in history]
+            probs = [h["prob"] for h in history]
             fig.add_trace(go.Scatter(
-                x=times, y=temps, mode="lines+markers",
+                x=times, y=probs, mode="lines+markers",
                 line=dict(color="#2563EB", width=2),
                 marker=dict(size=4, color="#2563EB"),
-                name="Temperature",
+                name="Failure Probability",
                 fill="tozeroy",
                 fillcolor="rgba(37, 99, 235, 0.1)",
             ))
 
             # Add threshold lines
-            fig.add_hline(y=40, line_dash="dash", line_color="#D97706",
+            fig.add_hline(y=15, line_dash="dash", line_color="#D97706",
                          annotation_text="CAUTION", annotation_font_color="#D97706")
-            fig.add_hline(y=45, line_dash="dash", line_color="#F97316",
+            fig.add_hline(y=40, line_dash="dash", line_color="#F97316",
                          annotation_text="HIGH", annotation_font_color="#F97316")
-            fig.add_hline(y=50, line_dash="dash", line_color="#DC2626",
+            fig.add_hline(y=80, line_dash="dash", line_color="#DC2626",
                          annotation_text="CRITICAL", annotation_font_color="#DC2626")
 
             fig.update_layout(
@@ -152,7 +148,7 @@ def render(xgb_model, iso_model, metadata, dataset):
                 height=350,
                 margin=dict(l=40, r=20, t=10, b=40),
                 xaxis=dict(**_AXIS, title="Time (s)"),
-                yaxis=dict(**_AXIS, title="Temperature (°C)", range=[25, 60]),
+                yaxis=dict(**_AXIS, title="Failure Probability (%)", range=[0, 100]),
                 showlegend=False,
             )
             st.plotly_chart(fig, use_container_width=True)
@@ -161,12 +157,13 @@ def render(xgb_model, iso_model, metadata, dataset):
             st.markdown('<div class="eng-card-header">Forecast</div>', unsafe_allow_html=True)
             st.markdown('<div class="eng-card">', unsafe_allow_html=True)
             for fc in forecasts:
-                delta_color = "#16A34A" if fc["predicted_C"] < 42 else "#D97706" if fc["predicted_C"] < 48 else "#DC2626"
+                fc_prob = fc["predicted_prob"] * 100
+                delta_color = "#16A34A" if fc_prob < 15 else "#D97706" if fc_prob < 40 else "#DC2626"
                 st.markdown(f'''
                 <div style="display: flex; justify-content: space-between; padding: 10px 0;
                             border-bottom: 1px solid #F3F4F6;">
                     <span style="color: #6B7280; font-size: 13px;">+{fc["horizon_min"]} min</span>
-                    <span style="color: {delta_color}; font-family: 'JetBrains Mono'; font-weight: 600;">{fc["predicted_C"]:.1f}°C</span>
+                    <span style="color: {delta_color}; font-family: 'JetBrains Mono'; font-weight: 600;">{fc_prob:.1f}%</span>
                 </div>
                 ''', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
@@ -175,7 +172,7 @@ def render(xgb_model, iso_model, metadata, dataset):
             st.markdown('<div class="eng-card-header" style="margin-top:16px;">Status</div>', unsafe_allow_html=True)
             st.markdown(f'''
             <div class="eng-card">
-                <div><span class="risk-badge risk-{risk["risk_level"].lower()}">{risk["risk_level"]}</span></div>
+                <div><span class="risk-badge risk-{risk_level.lower()}">{risk_level}</span></div>
                 <div style="margin-top: 8px; font-size: 12px; color: #6B7280;">
                     {"🔴 " + anomaly["label"] if anomaly["label"] == "ANOMALY" else "🟢 " + anomaly["label"]}
                 </div>
@@ -197,21 +194,18 @@ def render(xgb_model, iso_model, metadata, dataset):
     else:
         # ── Static View ────────────────────────────
         features = get_default_features()
-        features["battery_current_A"] = 6.0
-        features["ambient_temperature_C"] = 28.0
-        features["battery_temperature_C"] = 35.0
-        predicted_temp = predict_temperature(xgb_model, features)
-        forecasts = forecast_temperatures(xgb_model, features)
+        predicted_prob = predict_failure_probability(mlp_model, features)
+        forecasts = forecast_failure_probability(mlp_model, features)
 
         col_curr, col_f1, col_f3, col_f5 = st.columns(4)
         with col_curr:
-            st.metric("Current Temperature", f"{predicted_temp:.1f}°C")
+            st.metric("Current Probability", f"{predicted_prob * 100:.1f}%")
         with col_f1:
-            st.metric(f"+{forecasts[0]['horizon_min']} min", f"{forecasts[0]['predicted_C']:.1f}°C")
+            st.metric(f"+{forecasts[0]['horizon_min']} min", f"{forecasts[0]['predicted_prob']*100:.1f}%")
         with col_f3:
-            st.metric(f"+{forecasts[1]['horizon_min']} min", f"{forecasts[1]['predicted_C']:.1f}°C")
+            st.metric(f"+{forecasts[1]['horizon_min']} min", f"{forecasts[1]['predicted_prob']*100:.1f}%")
         with col_f5:
-            st.metric(f"+{forecasts[2]['horizon_min']} min", f"{forecasts[2]['predicted_C']:.1f}°C")
+            st.metric(f"+{forecasts[2]['horizon_min']} min", f"{forecasts[2]['predicted_prob']*100:.1f}%")
 
         st.info("Select a simulation mode and click **Start Live Simulation** to begin real-time monitoring.")
 
@@ -222,7 +216,7 @@ def render(xgb_model, iso_model, metadata, dataset):
             fig = go.Figure()
             fig.add_trace(go.Scatter(
                 x=[h["time"] for h in history],
-                y=[h["temp"] for h in history],
+                y=[h["prob"] for h in history],
                 mode="lines+markers",
                 line=dict(color="#2563EB", width=2),
                 marker=dict(size=4),
@@ -234,6 +228,6 @@ def render(xgb_model, iso_model, metadata, dataset):
                 height=300,
                 margin=dict(l=40, r=20, t=10, b=40),
                 xaxis=dict(**_AXIS, title="Time (s)"),
-                yaxis=dict(**_AXIS, title="Temperature (°C)"),
+                yaxis=dict(**_AXIS, title="Failure Probability (%)", range=[0, 100]),
             )
             st.plotly_chart(fig, use_container_width=True)

@@ -1,7 +1,7 @@
 """
 LIME Explainable AI Module
 ==========================
-Local LIME explanations for the XGBoost or PyTorch MLP temperature models.
+Local LIME explanations for the PyTorch MLP failure classifier.
 """
 
 import numpy as np
@@ -12,41 +12,36 @@ from src.preprocessing import FEATURE_COLUMNS, get_feature_display_names
 from src.prediction_engine import MLPPredictor, predict_batch
 
 class LimeThermalExplainer:
-    def __init__(self, model, background_data: pd.DataFrame):
+    def __init__(self, model: MLPPredictor, background_data: pd.DataFrame):
         """
         Initialize the LIME Tabular Explainer.
-        model: XGBoost or MLPPredictor instance.
+        model: MLPPredictor instance.
         background_data: A DataFrame of background training data (e.g., 100-500 samples)
         """
         self.model = model
         self.feature_names = FEATURE_COLUMNS
         
-        # LIME needs a numpy 2d array of training data
+        # LIME needs a numpy 2d array of training data. 
+        # We pass it the RAW data, not scaled, so the explanations are in original units.
         self.explainer = lime.lime_tabular.LimeTabularExplainer(
             training_data=background_data[FEATURE_COLUMNS].values,
             feature_names=self.feature_names,
-            mode="regression",
+            mode="classification", # We are predicting failure probability
+            class_names=["Normal", "Failure"],
             random_state=42
         )
         
     def _predict_fn(self, X: np.ndarray) -> np.ndarray:
         """Prediction wrapper for LIME."""
         df = pd.DataFrame(X, columns=self.feature_names)
-        return predict_batch(self.model, df)
+        probs = predict_batch(self.model, df)
+        # LIME classification needs probability for both classes [P(0), P(1)]
+        return np.vstack((1 - probs, probs)).T
         
     def explain_prediction(self, features: dict, num_features: int = 5) -> dict:
         """
         Generate a LIME local explanation for a single prediction.
-        
-        Returns:
-            {
-                "predicted_value": float,
-                "contributions": list[dict],
-                "explanation_text": str,
-                "model_type": str
-            }
         """
-        # Prepare the single observation as a numpy array
         x_obs = pd.DataFrame([features])[self.feature_names].values[0]
         
         # Generate explanation
@@ -56,17 +51,13 @@ class LimeThermalExplainer:
             num_features=num_features
         )
         
-        # Get actual predicted value
-        predicted_value = self._predict_fn(np.array([x_obs]))[0]
+        # Get actual predicted probability for class 1
+        predicted_prob = self._predict_fn(np.array([x_obs]))[0][1]
         
         display_names = get_feature_display_names()
         contributions = []
         
-        # LIME returns list of tuples: (feature_condition_string, weight)
-        # e.g., ('battery_current_A > 10.5', 2.3)
-        # We parse this to extract the base feature name if possible, or just pass the string.
         for feat_condition, weight in exp.as_list():
-            # Find the actual feature name inside the condition string
             base_feat = None
             for f in self.feature_names:
                 if f in feat_condition:
@@ -83,20 +74,19 @@ class LimeThermalExplainer:
                 "direction": "increases risk" if weight > 0 else "decreases risk"
             })
             
-        model_type = "mlp" if isinstance(self.model, MLPPredictor) else "xgboost"
+        model_type = "PyTorch MLP Classifier"
             
         return {
-            "predicted_value": round(float(predicted_value), 2),
+            "predicted_prob": round(float(predicted_prob), 4),
             "contributions": contributions,
-            "explanation_text": f"LIME local explanation using {model_type.upper()} model.",
+            "explanation_text": f"LIME local explanation using {model_type} model.",
             "model_type": model_type
         }
 
-def create_lime_explainer(model, dataset_path: str = "data/btms_dataset.csv") -> LimeThermalExplainer:
+def create_lime_explainer(model, dataset_path: str = "data/ev_battery_failure_dataset.csv") -> LimeThermalExplainer:
     """Helper to initialize LIME explainer with a sample of the dataset."""
     try:
         df = pd.read_csv(dataset_path)
-        # Use a small sample to initialize LIME for speed
         background_data = df.sample(n=500, random_state=42)
         return LimeThermalExplainer(model, background_data)
     except Exception as e:

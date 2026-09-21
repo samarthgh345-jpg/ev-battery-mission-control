@@ -2,9 +2,7 @@ import copy
 from typing import TypedDict, List, Dict, Any, Optional
 from langgraph.graph import StateGraph, END
 
-from src.prediction_engine import predict_temperature, load_mlp_model
-from src.risk_engine import assess_thermal_risk
-from src.hotspot_risk import estimate_hotspot_risk
+from src.prediction_engine import predict_failure_probability
 from src.anomaly_detection import detect_anomaly
 
 class ThermalAgentState(TypedDict):
@@ -19,28 +17,26 @@ class ThermalAgentState(TypedDict):
     simulations: List[Dict[str, Any]]
     selected_action: str
     decision_reason: str
-    target_coolant_flow: float
-    target_coolant_percent: int
 
 def observe_node(state: ThermalAgentState):
     """Passes the sensor data forward. Validates features."""
     return state
 
-def predict_node(state: ThermalAgentState, xgb_model, mlp_model, iso_model):
-    """Predict temperature using XGBoost and MLP, and detect anomalies."""
+def predict_node(state: ThermalAgentState, xgb_model, mlp_model, ae_model_artifacts):
+    """Predict failure probability using XGBoost and MLP, and detect anomalies."""
     sensor_data = state["sensor_data"]
     
     # XGBoost prediction
-    xgb_pred = predict_temperature(xgb_model, sensor_data)
+    xgb_pred = predict_failure_probability(xgb_model, sensor_data)
     
-    # MLP prediction (if available)
+    # MLP prediction
     mlp_pred = xgb_pred
     if mlp_model:
-        mlp_pred = predict_temperature(mlp_model, sensor_data)
+        mlp_pred = predict_failure_probability(mlp_model, sensor_data)
         
-    # Anomaly detection (existing isolation forest + new autoencoder logic if merged, 
-    # here using existing iso_model for compatibility with current flow)
-    anomaly_res = detect_anomaly(iso_model, sensor_data)
+    # Anomaly detection (Autoencoder)
+    ae_model, ae_scaler, ae_imputer, ae_threshold = ae_model_artifacts
+    anomaly_res = detect_anomaly(ae_model, ae_scaler, ae_imputer, ae_threshold, sensor_data)
     
     return {
         "xgb_prediction": xgb_pred,
@@ -50,122 +46,105 @@ def predict_node(state: ThermalAgentState, xgb_model, mlp_model, iso_model):
     }
 
 def evaluate_risk_node(state: ThermalAgentState):
-    """Evaluate thermal risk based on predictions."""
-    sensor_data = state["sensor_data"]
-    # We use the higher of the two predictions to be safe
-    pred_temp = max(state["xgb_prediction"], state["mlp_prediction"])
+    """Evaluate overall risk based on failure probability and anomaly."""
+    # We use the MLP prediction as the primary failure risk
+    pred_prob = state["mlp_prediction"]
     
-    hotspot = estimate_hotspot_risk(
-        pred_temp,
-        sensor_data.get("battery_current_A", 5.0),
-        sensor_data.get("discharge_rate_C", 1.0),
-        sensor_data.get("coolant_flow_rate_kg_s", 0.02),
-        sensor_data.get("ambient_temperature_C", 25.0),
-    )
-    
-    risk = assess_thermal_risk(
-        current_temp=sensor_data.get("battery_temperature_C", pred_temp),
-        predicted_temp_5min=pred_temp,
-        temp_rate_per_min=0.0,
-        hotspot_risk_pct=hotspot["hotspot_risk_percent"]
-    )
-    
+    if pred_prob > 0.8:
+        risk_level = "CRITICAL"
+        risk_score = pred_prob * 100
+    elif pred_prob > 0.4 or state["anomaly_label"] == "ANOMALY":
+        risk_level = "HIGH"
+        risk_score = max(pred_prob * 100, 60.0)
+    elif pred_prob > 0.15:
+        risk_level = "CAUTION"
+        risk_score = pred_prob * 100
+    else:
+        risk_level = "NORMAL"
+        risk_score = pred_prob * 100
+        
     return {
-        "risk_level": risk["risk_level"],
-        "risk_score": risk["risk_score"]
+        "risk_level": risk_level,
+        "risk_score": risk_score
     }
 
 def generate_candidates_node(state: ThermalAgentState):
-    """Generate candidate cooling actions."""
-    current_flow = state["sensor_data"].get("coolant_flow_rate_kg_s", 0.02)
+    """Generate candidate simulated actions."""
     candidates = [
-        {"action": "Maintain cooling", "flow": current_flow, "target_pct": int(current_flow * 1000)},
-        {"action": "Cooling 20%", "flow": 0.020, "target_pct": 20},
-        {"action": "Cooling 35%", "flow": 0.035, "target_pct": 35},
-        {"action": "Emergency cooling", "flow": 0.040, "target_pct": 40},
+        {"action": "Maintain current operations", "mods": {}},
+        {"action": "Increase virtual cooling", "mods": {"cooling_system_health": 100.0}},
+        {"action": "Reduce simulated charging power", "mods": {"average_charge_power_kw": 10.0, "fast_charge_ratio": 0.0}},
+        {"action": "Allow simulated cooldown", "mods": {"state_of_charge": max(0, state["sensor_data"].get("state_of_charge", 0) - 5), "average_charge_power_kw": 0.0}},
     ]
     return {"candidates": candidates}
 
-def simulate_candidates_node(state: ThermalAgentState, xgb_model):
-    """Simulate the thermal result for each candidate action."""
+def simulate_candidates_node(state: ThermalAgentState, mlp_model):
+    """Simulate the failure probability result for each candidate action."""
     simulations = []
     current_features = state["sensor_data"]
     
     for cand in state["candidates"]:
         sim_features = copy.deepcopy(current_features)
-        sim_features["coolant_flow_rate_kg_s"] = cand["flow"]
         
-        # Use XGBoost as the baseline simulation model
-        pred_temp = predict_temperature(xgb_model, sim_features)
-        
-        hotspot = estimate_hotspot_risk(
-            pred_temp,
-            sim_features.get("battery_current_A", 5.0),
-            sim_features.get("discharge_rate_C", 1.0),
-            sim_features.get("coolant_flow_rate_kg_s", 0.02),
-            sim_features.get("ambient_temperature_C", 25.0),
-        )
-        
-        risk = assess_thermal_risk(
-            current_temp=sim_features.get("battery_temperature_C", pred_temp),
-            predicted_temp_5min=pred_temp,
-            temp_rate_per_min=1.0,
-            hotspot_risk_pct=hotspot["hotspot_risk_percent"]
-        )
-        
-        # Energy cost logic: Higher flow = higher cost
-        energy_cost = "Low"
-        if cand["target_pct"] >= 40:
-            energy_cost = "Very High"
-        elif cand["target_pct"] >= 35:
-            energy_cost = "High"
-        elif cand["target_pct"] >= 20:
-            energy_cost = "Medium"
+        # Apply modifications
+        for k, v in cand["mods"].items():
+            sim_features[k] = v
             
+        # Use MLP as the baseline simulation model
+        pred_prob = predict_failure_probability(mlp_model, sim_features)
+        
+        if pred_prob > 0.8:
+            risk_level = "CRITICAL"
+        elif pred_prob > 0.4:
+            risk_level = "HIGH"
+        elif pred_prob > 0.15:
+            risk_level = "CAUTION"
+        else:
+            risk_level = "NORMAL"
+            
+        # Simple energy cost heuristic
+        energy_cost = "Low"
+        if "cooling_system_health" in cand["mods"]:
+            energy_cost = "High"
+        elif cand["action"] == "Reduce simulated charging power":
+            energy_cost = "Medium (Time penalty)"
+
         simulations.append({
             "action": cand["action"],
-            "target_pct": cand["target_pct"],
-            "flow": cand["flow"],
-            "predicted_temp": pred_temp,
-            "risk_level": risk["risk_level"],
-            "risk_score": risk["risk_score"],
-            "energy_cost": energy_cost
+            "predicted_prob": pred_prob,
+            "predicted_temp": pred_prob, # Alias to fix KeyError in UI temporarily
+            "risk_level": risk_level,
+            "risk_score": pred_prob * 100,
+            "energy_cost": energy_cost,
+            "mods": cand["mods"]
         })
         
     return {"simulations": simulations}
 
 def compare_candidates_node(state: ThermalAgentState):
-    """Compare candidates based on safety > risk reduction > energy efficiency."""
+    """Compare candidates based on safety > operational disruption."""
     _level_rank = {"NORMAL": 0, "CAUTION": 1, "HIGH": 2, "CRITICAL": 3}
     
     simulations = state["simulations"]
     
-    # Sort primarily by risk severity, then by risk score, then by flow (energy cost)
+    # Sort primarily by risk severity, then by predicted probability
     sorted_sims = sorted(
         simulations,
         key=lambda x: (
             _level_rank.get(x["risk_level"], 9), 
-            x["flow"] if x["risk_level"] == "NORMAL" else x["risk_score"],
-            x["flow"]
+            x["predicted_prob"],
+            len(x["mods"]) # penalize more disruptive actions if risk is the same
         )
     )
     
     best_option = sorted_sims[0]
     
-    current_flow = state["sensor_data"].get("coolant_flow_rate_kg_s", 0.02)
-    
-    reason = f"The predicted temperature can be reduced to {best_option['predicted_temp']:.1f}°C, resulting in a {best_option['risk_level']} risk state."
-    if best_option["flow"] > current_flow:
-        reason += f" Increased cooling to {best_option['target_pct']}% is required to safely manage thermal stress."
-    elif best_option["flow"] < current_flow:
-        reason += f" Decreased cooling to {best_option['target_pct']}% is sufficient to maintain thermal safety while conserving energy."
-    else:
-        reason += " Current cooling is sufficient to maintain thermal safety while conserving energy."
+    reason = f"The simulated action '{best_option['action']}' reduces predicted failure probability to {best_option['predicted_prob']*100:.1f}%, resulting in a {best_option['risk_level']} risk state."
+    if state["anomaly_label"] == "ANOMALY":
+        reason += " Monitoring of the Autoencoder anomaly is also recommended."
         
     return {
         "selected_action": best_option["action"],
-        "target_coolant_flow": best_option["flow"],
-        "target_coolant_percent": best_option["target_pct"],
         "decision_reason": reason
     }
 
@@ -174,13 +153,13 @@ def apply_node(state: ThermalAgentState):
     # Simulation only - no real hardware control
     return state
 
-def build_thermal_agent_graph(xgb_model, iso_model, mlp_model=None):
+def build_thermal_agent_graph(xgb_model, ae_model_artifacts, mlp_model):
     """Build the LangGraph StateGraph."""
     workflow = StateGraph(ThermalAgentState)
     
     # Wrap nodes to inject models where needed
-    def _predict(state): return predict_node(state, xgb_model, mlp_model, iso_model)
-    def _simulate(state): return simulate_candidates_node(state, xgb_model)
+    def _predict(state): return predict_node(state, xgb_model, mlp_model, ae_model_artifacts)
+    def _simulate(state): return simulate_candidates_node(state, mlp_model)
     
     workflow.add_node("Observe", observe_node)
     workflow.add_node("Predict", _predict)
@@ -204,9 +183,9 @@ def build_thermal_agent_graph(xgb_model, iso_model, mlp_model=None):
     
     return workflow.compile()
 
-def run_agent_graph(xgb_model, iso_model, mlp_model, sensor_data: dict) -> ThermalAgentState:
+def run_agent_graph(xgb_model, ae_model_artifacts, mlp_model, sensor_data: dict) -> ThermalAgentState:
     """Convenience function to run the graph."""
-    graph = build_thermal_agent_graph(xgb_model, iso_model, mlp_model)
+    graph = build_thermal_agent_graph(xgb_model, ae_model_artifacts, mlp_model)
     
     initial_state = ThermalAgentState(
         sensor_data=sensor_data,
@@ -219,9 +198,7 @@ def run_agent_graph(xgb_model, iso_model, mlp_model, sensor_data: dict) -> Therm
         candidates=[],
         simulations=[],
         selected_action="",
-        decision_reason="",
-        target_coolant_flow=0.0,
-        target_coolant_percent=0
+        decision_reason=""
     )
     
     # LangGraph run

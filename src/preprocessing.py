@@ -9,36 +9,28 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from typing import Tuple, List
 
-# Input features for the XGBoost temperature model
+# Input features for the EV Battery Failure model
 FEATURE_COLUMNS = [
-    "battery_current_A",
-    "battery_voltage_V",
-    "state_of_charge_percent",
-    "ambient_temperature_C",
-    "battery_temperature_C",
-    "coolant_inlet_temperature_C",
-    "coolant_flow_rate_kg_s",
-    "coolant_pressure_Pa",
-    "nanoparticle_concentration_percent",
-    "reynolds_number",
-    "heat_transfer_coefficient_W_m2K",
-    "microchannel_width_mm",
-    "microchannel_height_mm",
-    "discharge_rate_C",
+    "cycle_count",
+    "state_of_charge",
+    "depth_of_discharge",
+    "cell_voltage_avg",
+    "cell_voltage_std",
+    "cell_temperature_avg",
+    "cell_temperature_max",
+    "internal_resistance",
+    "charge_efficiency",
+    "fast_charge_ratio",
+    "average_charge_power_kw",
+    "charging_interruptions",
+    "cooling_system_health",
+    "average_ambient_temperature",
 ]
 
-TARGET_COLUMN = "max_battery_temperature_C"
+TARGET_COLUMN = "battery_failure"
 
 # Features used for anomaly detection
-ANOMALY_FEATURES = [
-    "battery_current_A",
-    "battery_voltage_V",
-    "ambient_temperature_C",
-    "battery_temperature_C",
-    "coolant_flow_rate_kg_s",
-    "coolant_inlet_temperature_C",
-    "max_battery_temperature_C",
-]
+ANOMALY_FEATURES = FEATURE_COLUMNS.copy()
 
 
 def load_dataset(path: str) -> pd.DataFrame:
@@ -58,12 +50,9 @@ def get_features_and_target(
 def split_data(
     X: pd.DataFrame, y: pd.Series, test_size: float = 0.20, seed: int = 42
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series]:
-    """80/20 train/test split with stratification by risk bracket."""
-    # Create risk brackets for stratified split
-    bins = [0, 35, 42, 50, 100]
-    labels_strat = pd.cut(y, bins=bins, labels=["low", "med", "high", "vhigh"])
+    """80/20 train/test split with stratification by binary target."""
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=seed, stratify=labels_strat
+        X, y, test_size=test_size, random_state=seed, stratify=y
     )
     return X_train, X_test, y_train, y_test
 
@@ -71,18 +60,18 @@ def split_data(
 def get_feature_display_names() -> dict:
     """Human-readable names for features."""
     return {
-        "battery_current_A": "Battery Current (A)",
-        "battery_voltage_V": "Battery Voltage (V)",
-        "state_of_charge_percent": "State of Charge (%)",
-        "ambient_temperature_C": "Ambient Temperature (°C)",
-        "battery_temperature_C": "Battery Temperature (°C)",
-        "coolant_inlet_temperature_C": "Coolant Inlet Temp (°C)",
-        "coolant_flow_rate_kg_s": "Coolant Flow Rate (kg/s)",
-        "coolant_pressure_Pa": "Coolant Pressure (Pa)",
-        "nanoparticle_concentration_percent": "Nanoparticle Conc. (%)",
-        "reynolds_number": "Reynolds Number",
-        "heat_transfer_coefficient_W_m2K": "Heat Transfer Coeff (W/m²K)",
-        "microchannel_width_mm": "Microchannel Width (mm)",
-        "microchannel_height_mm": "Microchannel Height (mm)",
-        "discharge_rate_C": "Discharge Rate (C)",
+        "cycle_count": "Cycle Count",
+        "state_of_charge": "State of Charge (%)",
+        "depth_of_discharge": "Depth of Discharge (%)",
+        "cell_voltage_avg": "Avg Cell Voltage (V)",
+        "cell_voltage_std": "Cell Voltage Imbalance (Std)",
+        "cell_temperature_avg": "Avg Cell Temp (°C)",
+        "cell_temperature_max": "Max Cell Temp (°C)",
+        "internal_resistance": "Internal Resistance (mOhm)",
+        "charge_efficiency": "Charge Efficiency",
+        "fast_charge_ratio": "Fast Charge Ratio",
+        "average_charge_power_kw": "Avg Charge Power (kW)",
+        "charging_interruptions": "Charging Interruptions",
+        "cooling_system_health": "Cooling System Health (%)",
+        "average_ambient_temperature": "Ambient Temp (°C)",
     }

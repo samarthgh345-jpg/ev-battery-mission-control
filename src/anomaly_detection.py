@@ -1,73 +1,74 @@
 """
 Anomaly Detection
 =================
-Isolation Forest for detecting unusual battery operating conditions.
+Autoencoder for detecting unusual battery operating conditions.
 """
 
 import numpy as np
 import pandas as pd
+import torch
 import joblib
 from pathlib import Path
-from sklearn.ensemble import IsolationForest
 from src.preprocessing import ANOMALY_FEATURES
+from src.models.autoencoder import ThermalAutoencoder
 
+def load_autoencoder(model_dir: str):
+    """Load the trained Autoencoder, scaler, imputer, and threshold."""
+    path = Path(model_dir)
+    ae_path = path / "ae.pt"
+    scaler_path = path / "scaler.pkl"
+    imputer_path = path / "imputer.pkl"
+    threshold_path = path / "threshold.txt"
+    
+    model = ThermalAutoencoder(input_dim=len(ANOMALY_FEATURES))
+    model.load_state_dict(torch.load(ae_path))
+    model.eval()
+    
+    scaler = joblib.load(scaler_path)
+    imputer = joblib.load(imputer_path)
+    
+    with open(threshold_path, "r") as f:
+        threshold = float(f.read().strip())
+        
+    return model, scaler, imputer, threshold
 
-def train_anomaly_detector(
-    df: pd.DataFrame, contamination: float = 0.08, seed: int = 42
-) -> IsolationForest:
-    """Train an Isolation Forest on the multivariate operating conditions."""
-    X = df[ANOMALY_FEATURES].copy()
-    model = IsolationForest(
-        n_estimators=200,
-        contamination=contamination,
-        random_state=seed,
-        n_jobs=-1,
-    )
-    model.fit(X)
-    return model
-
-
-def detect_anomaly(model: IsolationForest, features: dict) -> dict:
+def detect_anomaly(model, scaler, imputer, threshold, features: dict) -> dict:
     """
-    Detect whether a single observation is anomalous.
+    Detect whether a single observation is anomalous using the Autoencoder.
 
     Returns:
         {
             "label": "NORMAL" or "ANOMALY",
-            "score": float (lower = more anomalous),
+            "score": float (reconstruction error),
+            "threshold": float,
             "message": str
         }
     """
-    row = {}
+    row = []
     for feat in ANOMALY_FEATURES:
-        row[feat] = features.get(feat, 0.0)
-    df = pd.DataFrame([row])
-
-    prediction = model.predict(df)[0]  # 1 = normal, -1 = anomaly
-    score = model.decision_function(df)[0]
-
-    if prediction == -1:
+        row.append(features.get(feat, 0.0))
+        
+    X = np.array([row])
+    
+    # Preprocess
+    X_imputed = imputer.transform(X)
+    X_scaled = scaler.transform(X_imputed)
+    X_tensor = torch.FloatTensor(X_scaled)
+    
+    with torch.no_grad():
+        reconstruction = model(X_tensor)
+        mse = torch.mean((X_tensor - reconstruction)**2).item()
+        
+    if mse > threshold:
         label = "ANOMALY"
-        message = "Unusual thermal/operating behaviour detected"
+        message = "High reconstruction error: Unusual operating behaviour detected"
     else:
         label = "NORMAL"
         message = "Operating within expected parameters"
 
     return {
         "label": label,
-        "score": round(float(score), 4),
+        "score": round(float(mse), 4),
+        "threshold": round(float(threshold), 4),
         "message": message,
     }
-
-
-def save_anomaly_model(model: IsolationForest, model_dir: str) -> Path:
-    """Save the trained anomaly detector."""
-    path = Path(model_dir) / "isolation_forest_model.joblib"
-    joblib.dump(model, path)
-    return path
-
-
-def load_anomaly_model(model_dir: str) -> IsolationForest:
-    """Load a trained anomaly detector."""
-    path = Path(model_dir) / "isolation_forest_model.joblib"
-    return joblib.load(path)

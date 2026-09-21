@@ -1,18 +1,18 @@
 """
 Explainability Page
 =================================
-Global and local SHAP/LIME explanations for the XGBoost model.
+Global and local SHAP/LIME explanations for the MLP classifier model.
 """
 
 import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
-from src.prediction_engine import predict_temperature, get_default_features
+from src.prediction_engine import predict_failure_probability, get_default_features
 from src.shap_explainer import explain_global, explain_local
 from src.lime_explainer import create_lime_explainer
 from app.ui_components import page_header, section_header, CHART_LAYOUT, metric_card
 
-def render(xgb_model, shap_explainer, metadata, dataset):
+def render(xgb_model, mlp_model, shap_explainer, metadata, dataset):
     page_header("Model Explainability", "SHAP/LIME Feature Contributions & Model Transparency")
 
     tab1, tab2, tab3 = st.tabs(["Local Explanation (SHAP)", "Local Explanation (LIME)", "Global Importance (SHAP)"])
@@ -20,32 +20,35 @@ def render(xgb_model, shap_explainer, metadata, dataset):
     # ── Local Explanation (SHAP) ──────────────────────────
     with tab1:
         section_header("Adjust Operating Conditions")
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
+
         with col1:
-            current = st.slider("Battery Current (A)", 1.0, 15.0, 8.5, 0.5, key="xai_current")
-            ambient = st.slider("Ambient Temperature (°C)", 20.0, 45.0, 32.0, 0.5, key="xai_ambient")
-            discharge = st.slider("Discharge Rate (C)", 0.5, 5.0, 2.0, 0.1, key="xai_discharge")
+            wi_avg_temp = st.slider("Avg Cell Temperature (°C)", 15.0, 60.0, 30.0, 0.5, key="xai_avg")
+            wi_max_temp = st.slider("Max Cell Temperature (°C)", 15.0, 85.0, max(32.0, wi_avg_temp + 2), 0.5, key="xai_max")
+
         with col2:
-            coolant_flow = st.slider("Coolant Flow (kg/s)", 0.005, 0.040, 0.015, 0.001, key="xai_flow")
-            coolant_inlet = st.slider("Coolant Inlet Temp (°C)", 15.0, 40.0, 25.0, 0.5, key="xai_inlet")
-            soc = st.slider("State of Charge (%)", 10.0, 100.0, 60.0, 5.0, key="xai_soc")
+            wi_power = st.slider("Charge Power (kW)", 0.0, 200.0, 50.0, 5.0, key="xai_power")
+            wi_resistance = st.slider("Internal Resistance (Ω)", 0.5, 10.0, 1.5, 0.1, key="xai_res")
+
+        with col3:
+            wi_soc = st.slider("State of Charge (%)", 0.0, 100.0, 80.0, 5.0, key="xai_soc")
+            wi_cooling = st.slider("Cooling Health (%)", 0.0, 100.0, 100.0, 5.0, key="xai_cool")
 
         features = get_default_features()
-        features["battery_current_A"] = current
-        features["ambient_temperature_C"] = ambient
-        features["battery_temperature_C"] = ambient + 6
-        features["coolant_flow_rate_kg_s"] = coolant_flow
-        features["coolant_inlet_temperature_C"] = coolant_inlet
-        features["discharge_rate_C"] = discharge
-        features["state_of_charge_percent"] = soc
+        features["cell_temperature_avg"] = wi_avg_temp
+        features["cell_temperature_max"] = max(wi_avg_temp, wi_max_temp)
+        features["average_charge_power_kw"] = wi_power
+        features["internal_resistance"] = wi_resistance
+        features["state_of_charge"] = wi_soc
+        features["cooling_system_health"] = wi_cooling
 
-        predicted_temp = predict_temperature(xgb_model, features)
+        predicted_prob = predict_failure_probability(mlp_model, features)
 
         st.markdown('<div style="margin-top:20px; margin-bottom:20px; border-bottom:1px solid var(--border);"></div>', unsafe_allow_html=True)
         
         c1, c2 = st.columns([1, 2])
         with c1:
-            metric_card("Predicted Temp", f"{predicted_temp:.1f}", " °C")
+            metric_card("Failure Prob", f"{predicted_prob*100:.1f}", " %")
             
             st.markdown("<br/>", unsafe_allow_html=True)
             if st.button("Generate SHAP Explanation", use_container_width=True, key="xai_explain"):
@@ -54,11 +57,11 @@ def render(xgb_model, shap_explainer, metadata, dataset):
         with c2:
             if st.session_state.get("xai_run", False):
                 with st.spinner("Computing SHAP values..."):
-                    exp = explain_local(shap_explainer, features)
+                    exp = explain_local(shap_explainer, mlp_model, features)
 
-                st.markdown(f'<div style="font-size:13px; color:var(--text-2); margin-bottom:12px;">Base value: <b>{exp["base_value"]:.2f}°C</b> → Predicted: <b>{exp["predicted_value"]:.2f}°C</b></div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="font-size:13px; color:var(--text-2); margin-bottom:12px;">Base value: <b>{exp["base_value_logit"]:.4f}</b> (logit) → Predicted: <b>{exp["predicted_prob"]:.4f}</b> (prob)</div>', unsafe_allow_html=True)
 
-                contribs = exp["contributions"] # Show all features, do not truncate
+                contribs = exp["contributions"]
                 fig = go.Figure()
 
                 names = [c["display_name"] for c in contribs]
@@ -70,16 +73,16 @@ def render(xgb_model, shap_explainer, metadata, dataset):
                     x=values[::-1],
                     orientation="h",
                     marker_color=colors[::-1],
-                    text=[f"{v:+.2f}°C" for v in values[::-1]],
+                    text=[f"{v:+.3f}" for v in values[::-1]],
                     textposition="outside",
                     textfont=dict(family="JetBrains Mono", size=12, color="#111827"),
                     cliponaxis=False,
                 ))
                 layout_opts = CHART_LAYOUT.copy()
                 layout_opts.update(
-                    height=400,
+                    height=500,
                     margin=dict(l=200, r=80, t=20, b=40),
-                    xaxis=dict(title="SHAP Value (°C impact)", zeroline=True, zerolinecolor="#E5E7EB", showgrid=False),
+                    xaxis=dict(title="SHAP Value (impact on probability)", zeroline=True, zerolinecolor="#E5E7EB", showgrid=False),
                     yaxis=dict(showgrid=False),
                     showlegend=False,
                 )
@@ -95,11 +98,11 @@ def render(xgb_model, shap_explainer, metadata, dataset):
         
         if st.button("Generate LIME Explanation", key="lime_btn"):
             with st.spinner("Training LIME surrogate..."):
-                lime_exp = create_lime_explainer(xgb_model)
+                lime_exp = create_lime_explainer(mlp_model)
                 if lime_exp is None:
                     st.error("Failed to create LIME explainer. Check that the dataset file exists.")
                 else:
-                    lime_result = lime_exp.explain_prediction(features, num_features=14)
+                    lime_result = lime_exp.explain_prediction(features, num_features=10)
                     
                     lime_html = "<div style='display:flex; flex-direction:column; gap:8px; margin-top:20px;'>"
                     for contrib in lime_result["contributions"]:
@@ -122,7 +125,8 @@ def render(xgb_model, shap_explainer, metadata, dataset):
         section_header("Global Feature Importance")
         if st.button("Compute Global Importance (Slow)"):
             with st.spinner("Computing global SHAP values over subset..."):
-                global_exp = explain_global(shap_explainer, dataset)
+                sample = dataset.sample(min(150, len(dataset)), random_state=42)
+                global_exp = explain_global(shap_explainer, sample)
                 
                 st.markdown('<div style="margin-top:20px; margin-bottom:20px; border-bottom:1px solid var(--border);"></div>', unsafe_allow_html=True)
                 
@@ -132,14 +136,14 @@ def render(xgb_model, shap_explainer, metadata, dataset):
                     x=global_exp["importance"][::-1],
                     orientation="h",
                     marker_color="#2563EB",
-                    text=[f"{v:.2f}" for v in global_exp["importance"][::-1]],
+                    text=[f"{v:.3f}" for v in global_exp["importance"][::-1]],
                     textposition="outside",
                     textfont=dict(family="JetBrains Mono", size=12, color="#111827"),
                     cliponaxis=False,
                 ))
                 layout_opts = CHART_LAYOUT.copy()
                 layout_opts.update(
-                    height=450,
+                    height=500,
                     margin=dict(l=200, r=40, t=20, b=40),
                     xaxis=dict(title="Mean |SHAP Value| (average impact on prediction)", zeroline=True, zerolinecolor="#E5E7EB", showgrid=False),
                     yaxis=dict(showgrid=False),
