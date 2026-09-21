@@ -45,26 +45,31 @@ graph TD
 
 ## 📊 5. Dataset
 
-Since high-resolution, extreme-condition BTMS datasets are rare, this project uses a **Synthetic / Simulation-Inspired BTMS Dataset**.
+This project uses a **200K EV Battery Failure Prediction Dataset**.
 
-- **Type**: Synthetic BTMS dataset
-- **Size**: 10,000 rows
-- **Columns**: 19 dataset columns
-- **Input Features**: 14 model input features
-- **Target**: `max_temp` (Maximum Battery Temperature)
+- **Type**: Synthetic failure classification dataset
+- **Size**: 200,000 rows
+- **Input Features**: 14 conservative primary features
+- **Target**: `battery_failure` (Binary Classification)
+
+**Conservative Primary Feature Set:**
+`cycle_count`, `state_of_charge`, `depth_of_discharge`, `cell_voltage_avg`, `cell_voltage_std`, `cell_temperature_avg`, `cell_temperature_max`, `internal_resistance`, `charge_efficiency`, `fast_charge_ratio`, `average_charge_power_kw`, `charging_interruptions`, `cooling_system_health`, `average_ambient_temperature`.
+
+**Leakage Prevention:**
+Derived risk and diagnostic features were excluded from the primary model because they may encode information closely related to the synthetic failure-generation process and could introduce target leakage or unrealistic predictive information. Excluded features include: `thermal_runaway_risk`, `battery_stress_index`, `aging_score`, `thermal_health_score`, `charging_quality_score`, `driving_stress_score`, `predicted_remaining_life_cycles`.
 
 ## 🧠 6. Machine Learning Models
 
-1. **XGBoost**: Primary regressor for fast, accurate temperature forecasting.
-2. **PyTorch MLP**: Deep learning multi-layer perceptron for secondary temperature prediction.
-3. **Isolation Forest**: Multivariate anomaly detection to flag unusual operating states.
+1. **PyTorch MLP**: Primary deep learning multi-layer perceptron for failure probability prediction.
+2. **XGBoost**: Secondary baseline model for failure prediction and comparison.
+3. **Autoencoder**: Multivariate anomaly detection to flag unusual operating states.
 4. **VAE (Variational Autoencoder)**: Compresses the 14D sensor signal into a 4D latent space for dimensionality reduction and reconstruction.
-5. **cGAN (Conditional GAN)**: Synthesizes realistic battery telemetry conditioned on specific thermal risk profiles (Normal, Caution, High, Critical).
+5. **cGAN (Conditional GAN)**: Synthesizes realistic battery telemetry conditioned on the target class (`battery_failure`).
 
 ## 🔍 7. Explainable AI
 
 - **SHAP (SHapley Additive exPlanations)**: Provides both global feature importance and local waterfall charts to explain individual predictions.
-- **LIME (Local Interpretable Model-agnostic Explanations)**: Offers an alternative localized perturbation-based explanation for model transparency.
+- **LIME (Local Interpretable Model-agnostic Explanations)**: Offers an alternative localized perturbation-based explanation for model transparency. *Note: LIME is integrated for local explanations. Certain low-variance input samples may cause numerical issues in the underlying perturbation procedure; this is a limitation of the local explanation process rather than the primary prediction model.*
 
 ## 📚 8. RAG Assistant
 
