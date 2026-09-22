@@ -116,6 +116,6 @@ def render(xgb_model, ae_model_artifacts, mlp_model, metadata, dataset):
             with m1:
                 metric_card("Failure Probability", f"{predicted_prob * 100:.1f}", " %")
             with m2:
-                metric_card("Thermal Delta (Max-Avg)", f"{hotspot['delta_temp']:.1f}", " °C")
+                metric_card("Thermal Delta (Max-Avg)", f"{features['cell_temperature_max'] - avg_temp:.1f}", " °C")
             with m3:
                 metric_card("Hotspot Variance", f"{hotspot['hotspot_risk_percent']:.1f}", " %")
