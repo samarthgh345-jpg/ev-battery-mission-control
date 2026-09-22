@@ -23,28 +23,26 @@ def render():
     
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("""
-        <div class="eng-card" style="height: 100%;">
+        with st.container(border=True):
+            st.markdown("""
             <div style="font-size: 15px; font-weight: 600; color: #16A34A; margin-bottom: 12px;">✅ Deterministic Safety Core</div>
             <ul style="font-size: 13px; color: var(--text-2); line-height: 1.6; padding-left: 20px;">
                 <li><strong>XGBoost / MLP</strong>: Trained on tabular sensor data to predict numerical max temperature.</li>
                 <li><strong>LangGraph Agent</strong>: Uses physics-based formulas (Newton's Law of Cooling) to evaluate control actions.</li>
                 <li><strong>Decision Logic</strong>: 100% deterministic code. No LLM controls the cooling system.</li>
             </ul>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
         
     with col2:
-        st.markdown("""
-        <div class="eng-card" style="height: 100%;">
+        with st.container(border=True):
+            st.markdown("""
             <div style="font-size: 15px; font-weight: 600; color: #2563EB; margin-bottom: 12px;">✅ Generative Assistance Layer</div>
             <ul style="font-size: 13px; color: var(--text-2); line-height: 1.6; padding-left: 20px;">
                 <li><strong>RAG LLM</strong>: Grounded purely on verified engineering documents. Restricted to Q&A.</li>
                 <li><strong>cGAN / VAE</strong>: Used strictly for generating synthetic data for research and edge-case simulation, clearly labeled as synthetic.</li>
                 <li><strong>Isolation</strong>: Generative models cannot trigger battery shutdown or alter flow rates.</li>
             </ul>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
     st.markdown('<div style="margin-top:20px; margin-bottom:20px; border-bottom:1px solid var(--border);"></div>', unsafe_allow_html=True)
 
@@ -68,13 +66,14 @@ def render():
     
     info_panel("Every prediction made by the system can be decomposed and audited.")
     
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        metric_card("SHAP", "Global & Local")
-        st.markdown("<div style='font-size: 11px; color: var(--text-3); text-align: center;'>Exact feature attribution</div>", unsafe_allow_html=True)
-    with c2:
-        metric_card("LIME", "Linear Surrogate")
-        st.markdown("<div style='font-size: 11px; color: var(--text-3); text-align: center;'>Local boundary approximation</div>", unsafe_allow_html=True)
-    with c3:
-        metric_card("RAG Distances", "L2 Norms")
-        st.markdown("<div style='font-size: 11px; color: var(--text-3); text-align: center;'>Visible confidence in retrieval</div>", unsafe_allow_html=True)
+    with st.container(border=True):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            metric_card("SHAP", "Global & Local")
+            st.markdown("<div style='font-size: 11px; color: var(--text-3); text-align: center;'>Exact feature attribution</div>", unsafe_allow_html=True)
+        with c2:
+            metric_card("LIME", "Linear Surrogate")
+            st.markdown("<div style='font-size: 11px; color: var(--text-3); text-align: center;'>Local boundary approximation</div>", unsafe_allow_html=True)
+        with c3:
+            metric_card("RAG Distances", "L2 Norms")
+            st.markdown("<div style='font-size: 11px; color: var(--text-3); text-align: center;'>Visible confidence in retrieval</div>", unsafe_allow_html=True)

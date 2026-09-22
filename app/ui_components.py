@@ -8,7 +8,7 @@ import streamlit as st
 
 # Common Plotly Chart Layout for engineering aesthetic
 CHART_LAYOUT = dict(
-    font=dict(family="Inter, sans-serif", size=12, color="#4B5563"),
+    font=dict(family="Inter, sans-serif", size=12, color="#1F2937"),
     plot_bgcolor="rgba(0,0,0,0)",
     paper_bgcolor="rgba(0,0,0,0)",
     margin=dict(l=40, r=20, t=40, b=40),

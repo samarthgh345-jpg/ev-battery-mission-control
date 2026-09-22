@@ -16,32 +16,37 @@ from app.ui_components import page_header, section_header, CHART_LAYOUT, info_pa
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-@st.cache_resource
-def load_cgan():
+@st.cache_resource(show_spinner=False)
+def load_cgan_model():
     try:
+        import sys
+        if str(PROJECT_ROOT) not in sys.path:
+            sys.path.insert(0, str(PROJECT_ROOT))
         from src.models.cgan import Generator
         gen_path = PROJECT_ROOT / "models" / "cgan" / "generator.pt"
         scaler_path = PROJECT_ROOT / "models" / "cgan" / "scaler.pkl"
         
         if not gen_path.exists() or not scaler_path.exists():
+            st.error(f"gen_path exists: {gen_path.exists()} ({gen_path}), scaler_path exists: {scaler_path.exists()} ({scaler_path})")
             return None, None
             
         scaler = joblib.load(scaler_path)
         
-        # Generator init: noise_dim=16, num_classes=4, feature_dim=14
-        generator = Generator(16, 4, 14)
+        # Generator init: noise_dim=16, num_classes=2, feature_dim=14
+        generator = Generator(16, 2, 14)
         generator.load_state_dict(torch.load(gen_path, weights_only=True))
         generator.eval()
         
         return generator, scaler
     except Exception as e:
+        st.error(f"Error loading cGAN details: {e}")
         print(f"Error loading cGAN: {e}")
         return None, None
 
 def render():
     page_header("Generative AI Data Synthesizer", "Conditional GAN (cGAN) for Synthetic Telemetry Generation")
     
-    generator, scaler = load_cgan()
+    generator, scaler = load_cgan_model()
     
     if generator is None:
         st.error("cGAN models not found. Please run: `python src/train_cgan.py`")
@@ -50,28 +55,29 @@ def render():
     info_panel("This tool uses a trained Conditional Generative Adversarial Network (cGAN) to synthesize realistic battery sensor data conditioned on specific thermal risk profiles.")
     
     # ── Controls ───────────────────────────────────
-    st.markdown('<div style="margin-top:20px; margin-bottom:20px; border-bottom:1px solid var(--border);"></div>', unsafe_allow_html=True)
-    
-    section_header("Generation Parameters")
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        target_risk = st.selectbox(
-            "Condition (Target Risk Level)", 
-            ["NORMAL", "CAUTION", "HIGH", "CRITICAL"],
-            help="The cGAN will generate telemetry matching this thermal risk profile."
-        )
-    with col2:
-        n_samples = st.slider("Number of samples to generate", 10, 500, 100, 10)
-    with col3:
-        random_seed = st.number_input("Random Seed", value=42, min_value=1, max_value=9999)
+    with st.container(border=True):
+        section_header("Generation Parameters")
+        col1, col2, col3 = st.columns(3)
         
-    if st.button("Generate Synthetic Data", use_container_width=True):
+        with col1:
+            target_risk = st.selectbox(
+                "Condition (Target Risk Level)", 
+                ["NORMAL", "FAILURE"],
+                help="The cGAN will generate telemetry matching this risk profile."
+            )
+        with col2:
+            n_samples = st.slider("Number of samples to generate", 10, 500, 100, 10)
+        with col3:
+            random_seed = st.number_input("Random Seed", value=42, min_value=1, max_value=9999)
+            
+        generate_btn = st.button("Generate Synthetic Data", type="primary", use_container_width=True)
+        
+    if generate_btn:
         with st.spinner(f"Generating {n_samples} {target_risk} samples..."):
             torch.manual_seed(random_seed)
             np.random.seed(random_seed)
             
-            label_map = {"NORMAL": 0, "CAUTION": 1, "HIGH": 2, "CRITICAL": 3}
+            label_map = {"NORMAL": 0, "FAILURE": 1}
             class_idx = label_map[target_risk]
             
             noise = torch.randn(n_samples, 16)
@@ -92,11 +98,11 @@ def render():
             
             # Physically positive constraints
             positive_cols = [
-                "battery_current_A", "battery_voltage_V", 
-                "coolant_flow_rate_kg_s", "coolant_pressure_Pa", 
-                "nanoparticle_concentration_percent", "reynolds_number",
-                "heat_transfer_coefficient_W_m2K", "microchannel_width_mm",
-                "microchannel_height_mm", "discharge_rate_C"
+                "cycle_count", "state_of_charge", "depth_of_discharge", 
+                "cell_voltage_avg", "cell_voltage_std", "cell_temperature_avg", 
+                "cell_temperature_max", "internal_resistance", "charge_efficiency", 
+                "fast_charge_ratio", "average_charge_power_kw", "charging_interruptions", 
+                "cooling_system_health"
             ]
             
             for col in positive_cols:
@@ -107,15 +113,15 @@ def render():
                     df_gen.loc[invalid_mask, col] = 0.0
                     
             # SOC constraints
-            soc_low = df_gen["state_of_charge_percent"] < 0
+            soc_low = df_gen["state_of_charge"] < 0
             if soc_low.any():
-                violations["state_of_charge_percent"] += soc_low.sum()
-                df_gen.loc[soc_low, "state_of_charge_percent"] = 0.0
+                violations["state_of_charge"] += soc_low.sum()
+                df_gen.loc[soc_low, "state_of_charge"] = 0.0
                 
-            soc_high = df_gen["state_of_charge_percent"] > 100
+            soc_high = df_gen["state_of_charge"] > 100
             if soc_high.any():
-                violations["state_of_charge_percent"] += soc_high.sum()
-                df_gen.loc[soc_high, "state_of_charge_percent"] = 100.0
+                violations["state_of_charge"] += soc_high.sum()
+                df_gen.loc[soc_high, "state_of_charge"] = 100.0
                 
             total_violations = sum(violations.values())
             
@@ -131,24 +137,24 @@ def render():
         violations = st.session_state.cgan_violations
         total_violations = st.session_state.cgan_total_violations
         
-        st.markdown('<div style="margin-top:20px; margin-bottom:20px; border-bottom:1px solid var(--border);"></div>', unsafe_allow_html=True)
-        section_header("Generated Telemetry")
-        
-        if total_violations > 0:
-            viol_details = ", ".join([f"{k}: {v}" for k, v in violations.items() if v > 0])
-            st.warning(f"Validation: {total_violations} values violated physical constraints (e.g., < 0) and were corrected. Details: {viol_details}")
-        else:
-            st.success("Validation: All generated samples satisfied physical constraints without correction.")
-        
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            metric_card("Samples Generated", str(len(df_gen)))
-        with c2:
-            metric_card("Condition", target_risk)
-        with c3:
-            metric_card("Mean Temp", f"{df_gen['battery_temperature_C'].mean():.1f}", " °C")
-        with c4:
-            metric_card("Mean Current", f"{df_gen['battery_current_A'].mean():.1f}", " A")
+        with st.container(border=True):
+            section_header("Generated Telemetry")
+            
+            if total_violations > 0:
+                viol_details = ", ".join([f"{k}: {v}" for k, v in violations.items() if v > 0])
+                st.warning(f"Validation: {total_violations} values violated physical constraints (e.g., < 0) and were corrected. Details: {viol_details}")
+            else:
+                st.success("Validation: All generated samples satisfied physical constraints without correction.")
+            
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                metric_card("Samples Generated", str(len(df_gen)))
+            with c2:
+                metric_card("Condition", target_risk)
+            with c3:
+                metric_card("Mean Temp", f"{df_gen['cell_temperature_avg'].mean():.1f}", " °C")
+            with c4:
+                metric_card("Mean Voltage", f"{df_gen['cell_voltage_avg'].mean():.2f}", " V")
             
         st.markdown("<br/>", unsafe_allow_html=True)
         

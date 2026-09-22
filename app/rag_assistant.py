@@ -58,44 +58,48 @@ def render():
     col1, col2 = st.columns([3, 1])
 
     with col2:
-        section_header("System Status")
-
-        provider_name = provider.__class__.__name__ if provider else "No-LLM Fallback"
-        metric_card("LLM Provider", provider_name)
-        st.markdown("<br/>", unsafe_allow_html=True)
-        metric_card("FAISS Chunks", f"{len(rag.metadata) if rag.index else 0}")
-        st.markdown("<br/>", unsafe_allow_html=True)
-        metric_card("Embedding Model", "Loaded")
-
-        st.markdown("<br/>", unsafe_allow_html=True)
-        section_header("Sample Queries")
-        samples = [
-            "What is BTMS?",
-            "What is thermal runaway?",
-            "Why is liquid cooling used?",
-            "How does coolant flow affect heat transfer?",
-        ]
-
-        selected_sample = st.radio("Select a question:", samples, index=None, label_visibility="collapsed")
+        with st.container(border=True):
+            section_header("System Status")
+    
+            provider_name = provider.__class__.__name__ if provider else "No-LLM Fallback"
+            metric_card("LLM Provider", provider_name)
+            st.markdown("<br/>", unsafe_allow_html=True)
+            metric_card("FAISS Chunks", f"{len(rag.metadata) if rag.index else 0}")
+            st.markdown("<br/>", unsafe_allow_html=True)
+            metric_card("Embedding Model", "Loaded")
+    
+            st.markdown("<br/>", unsafe_allow_html=True)
+            section_header("Sample Queries")
+            samples = [
+                "What is BTMS?",
+                "What is thermal runaway?",
+                "Why is liquid cooling used?",
+                "How does coolant flow affect heat transfer?",
+            ]
+    
+            selected_sample = st.radio("Select a question:", samples, index=None, label_visibility="collapsed")
 
     with col1:
-        section_header("Ask an Engineering Question")
-
-        user_query = st.text_input(
-            "Question:",
-            value=selected_sample if selected_sample else "",
-            placeholder="e.g., Why does battery temperature matter?",
-        )
-
-        if st.button("Ask Assistant", type="primary", use_container_width=True):
+        with st.container(border=True):
+            section_header("Ask an Engineering Question")
+    
+            user_query = st.text_input(
+                "Question:",
+                value=selected_sample if selected_sample else "",
+                placeholder="e.g., Why does battery temperature matter?",
+            )
+    
+            ask_btn = st.button("Ask Assistant", type="primary", use_container_width=True)
+            
+        if ask_btn:
             if not user_query.strip():
                 st.warning("Please enter a question.")
             else:
                 with st.spinner("Retrieving knowledge and generating answer..."):
                     res = rag.generate_answer(user_query)
-
+    
                 st.markdown('<div style="margin-top:20px; margin-bottom:20px; border-bottom:1px solid var(--border);"></div>', unsafe_allow_html=True)
-
+    
                 section_header("Answer")
                 
                 if res['provider'] == "Fallback (No LLM)":

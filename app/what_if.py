@@ -16,25 +16,24 @@ def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, d
     page_header("What-If Simulator", "Explore Hypothetical Operating Scenarios")
 
     # ── Controls ───────────────────────────────────
-    section_header("Adjust Operating Parameters")
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        wi_avg_temp = st.slider("Avg Cell Temperature (°C)", 15.0, 60.0, 30.0, 0.5, key="wi_avg")
-        wi_max_temp = st.slider("Max Cell Temperature (°C)", 15.0, 85.0, max(32.0, wi_avg_temp + 2), 0.5, key="wi_max")
-
-    with col2:
-        wi_power = st.slider("Charge Power (kW)", 0.0, 200.0, 50.0, 5.0, key="wi_power")
-        wi_resistance = st.slider("Internal Resistance (Ω)", 0.5, 10.0, 1.5, 0.1, key="wi_res")
-
-    with col3:
-        wi_soc = st.slider("State of Charge (%)", 0.0, 100.0, 80.0, 5.0, key="wi_soc")
-        wi_cooling = st.slider("Cooling Health (%)", 0.0, 100.0, 100.0, 5.0, key="wi_cool")
-
-    run_whatif = st.button("Run What-If Simulation", use_container_width=True, key="run_whatif")
-
-    st.markdown('<div style="margin-top:20px; margin-bottom:20px; border-bottom:1px solid var(--border);"></div>', unsafe_allow_html=True)
+    with st.container(border=True):
+        section_header("Adjust Operating Parameters")
+    
+        col1, col2, col3 = st.columns(3)
+    
+        with col1:
+            wi_avg_temp = st.slider("Avg Cell Temperature (°C)", 15.0, 60.0, 30.0, 0.5, key="wi_avg")
+            wi_max_temp = st.slider("Max Cell Temperature (°C)", 15.0, 85.0, max(32.0, wi_avg_temp + 2), 0.5, key="wi_max")
+    
+        with col2:
+            wi_power = st.slider("Charge Power (kW)", 0.0, 200.0, 50.0, 5.0, key="wi_power")
+            wi_resistance = st.slider("Internal Resistance (Ω)", 0.5, 10.0, 1.5, 0.1, key="wi_res")
+    
+        with col3:
+            wi_soc = st.slider("State of Charge (%)", 0.0, 100.0, 80.0, 5.0, key="wi_soc")
+            wi_cooling = st.slider("Cooling Health (%)", 0.0, 100.0, 100.0, 5.0, key="wi_cool")
+    
+        run_whatif = st.button("Run What-If Simulation", type="primary", use_container_width=True, key="run_whatif")
 
     # ── Baseline ───────────────────────────────────
     baseline = get_default_features()
@@ -74,29 +73,29 @@ def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, d
         )
 
         # ── Parameter Comparison ───────────────────────
-        section_header("Parameter Comparison")
-        
-        comp_data = [
-            {"Parameter": "Avg Temp", "Baseline": f'{baseline["cell_temperature_avg"]:.1f} °C', "Scenario": f"{wi_avg_temp:.1f} °C", "Change": f"{wi_avg_temp - baseline['cell_temperature_avg']:+.1f} °C"},
-            {"Parameter": "Max Temp", "Baseline": f'{baseline["cell_temperature_max"]:.1f} °C', "Scenario": f"{wi_max_temp:.1f} °C", "Change": f"{wi_max_temp - baseline['cell_temperature_max']:+.1f} °C"},
-            {"Parameter": "Charge Power", "Baseline": f'{baseline["average_charge_power_kw"]:.1f} kW', "Scenario": f"{wi_power:.1f} kW", "Change": f"{wi_power - baseline['average_charge_power_kw']:+.1f} kW"},
-            {"Parameter": "Resistance", "Baseline": f'{baseline["internal_resistance"]:.2f} Ω', "Scenario": f"{wi_resistance:.2f} Ω", "Change": f"{wi_resistance - baseline['internal_resistance']:+.2f} Ω"},
-        ]
-        
-        df_comp = pd.DataFrame(comp_data)
-        st.dataframe(df_comp, use_container_width=True, hide_index=True)
-
-        st.markdown('<div style="margin-top:20px; margin-bottom:20px; border-bottom:1px solid var(--border);"></div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            section_header("Parameter Comparison")
+            
+            comp_data = [
+                {"Parameter": "Avg Temp", "Baseline": f'{baseline["cell_temperature_avg"]:.1f} °C', "Scenario": f"{wi_avg_temp:.1f} °C", "Change": f"{wi_avg_temp - baseline['cell_temperature_avg']:+.1f} °C"},
+                {"Parameter": "Max Temp", "Baseline": f'{baseline["cell_temperature_max"]:.1f} °C', "Scenario": f"{wi_max_temp:.1f} °C", "Change": f"{wi_max_temp - baseline['cell_temperature_max']:+.1f} °C"},
+                {"Parameter": "Charge Power", "Baseline": f'{baseline["average_charge_power_kw"]:.1f} kW', "Scenario": f"{wi_power:.1f} kW", "Change": f"{wi_power - baseline['average_charge_power_kw']:+.1f} kW"},
+                {"Parameter": "Resistance", "Baseline": f'{baseline["internal_resistance"]:.2f} Ω', "Scenario": f"{wi_resistance:.2f} Ω", "Change": f"{wi_resistance - baseline['internal_resistance']:+.2f} Ω"},
+            ]
+            
+            df_comp = pd.DataFrame(comp_data)
+            st.dataframe(df_comp, use_container_width=True, hide_index=True)
 
         # ── Comparison ─────────────────────────────
         col_b, col_arrow, col_w = st.columns([2, 1, 2])
 
         with col_b:
-            section_header("Baseline Prediction")
-            metric_card("Failure Prob", f"{baseline_prob*100:.1f}", " %")
-            st.markdown("<br/>", unsafe_allow_html=True)
-            status_badge("Failure Risk", base_risk)
-            status_badge("Hotspot Variance", "NORMAL" if baseline_hotspot["hotspot_risk_percent"] < 30 else "CAUTION")
+            with st.container(border=True):
+                section_header("Baseline Prediction")
+                metric_card("Failure Prob", f"{baseline_prob*100:.1f}", " %")
+                st.markdown("<br/>", unsafe_allow_html=True)
+                status_badge("Failure Risk", base_risk)
+                status_badge("Hotspot Variance", "NORMAL" if baseline_hotspot["hotspot_risk_percent"] < 30 else "CAUTION")
 
         with col_arrow:
             delta_color = "#DC2626" if delta_prob > 0 else "#16A34A"
@@ -110,11 +109,12 @@ def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, d
             ''', unsafe_allow_html=True)
 
         with col_w:
-            section_header("What-If Prediction")
-            metric_card("Failure Prob", f"{whatif_prob*100:.1f}", " %")
-            st.markdown("<br/>", unsafe_allow_html=True)
-            status_badge("Failure Risk", whatif_risk)
-            status_badge("Hotspot Variance", "NORMAL" if whatif_hotspot["hotspot_risk_percent"] < 30 else "CAUTION")
+            with st.container(border=True):
+                section_header("What-If Prediction")
+                metric_card("Failure Prob", f"{whatif_prob*100:.1f}", " %")
+                st.markdown("<br/>", unsafe_allow_html=True)
+                status_badge("Failure Risk", whatif_risk)
+                status_badge("Hotspot Variance", "NORMAL" if whatif_hotspot["hotspot_risk_percent"] < 30 else "CAUTION")
 
         # ── Battery Visualization Comparison ───────
         st.markdown('<div style="margin-top:20px; margin-bottom:20px; border-bottom:1px solid var(--border);"></div>', unsafe_allow_html=True)
@@ -123,17 +123,17 @@ def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, d
         with col_grid_b:
             section_header("Baseline Grid")
             grid_b = generate_cell_temperature_grid(baseline["cell_temperature_avg"], baseline["cell_temperature_max"], seed=42)
-            _render_heatmap(grid_b)
+            _render_heatmap(grid_b, key="heatmap_baseline")
 
         with col_grid_w:
             section_header("What-If Grid")
             grid_w = generate_cell_temperature_grid(whatif["cell_temperature_avg"], whatif["cell_temperature_max"], seed=42)
-            _render_heatmap(grid_w)
+            _render_heatmap(grid_w, key="heatmap_whatif")
 
     else:
         st.info("Adjust the parameters above and click **Run What-If Simulation** to compare scenarios.")
 
-def _render_heatmap(grid):
+def _render_heatmap(grid, key):
     # Heatmap color scale for light theme
     fig = go.Figure(data=go.Heatmap(
         z=grid[::-1],
@@ -154,4 +154,4 @@ def _render_heatmap(grid):
         margin=dict(l=10, r=10, t=10, b=10)
     )
     fig.update_layout(**layout_opts)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=True, key=key)

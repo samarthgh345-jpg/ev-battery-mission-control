@@ -18,17 +18,18 @@ def render(dataset):
         return
 
     # ── Dataset Info ───────────────────────────────
-    col1, col2, col3, col4, col5 = st.columns(5)
-    with col1:
-        metric_card("Dataset", "EV Failure 200K")
-    with col2:
-        metric_card("Rows", f"{len(dataset):,}")
-    with col3:
-        metric_card("Dataset Columns", f"{dataset.shape[1]}")
-    with col4:
-        metric_card("Model Input Features", f"{len(FEATURE_COLUMNS)}")
-    with col5:
-        metric_card("Target", TARGET_COLUMN)
+    with st.container(border=True):
+        col1, col2, col3, col4, col5 = st.columns(5)
+        with col1:
+            metric_card("Dataset", "EV Failure 200K")
+        with col2:
+            metric_card("Rows", f"{len(dataset):,}")
+        with col3:
+            metric_card("Dataset Columns", f"{dataset.shape[1]}")
+        with col4:
+            metric_card("Model Input Features", f"{len(FEATURE_COLUMNS)}")
+        with col5:
+            metric_card("Target", TARGET_COLUMN)
 
     st.markdown("<br/>", unsafe_allow_html=True)
     info_panel("This is the authoritative 200,000 row dataset predicting binary battery failure.")
@@ -41,40 +42,42 @@ def render(dataset):
     ])
 
     with tab_preview:
-        section_header("Data Preview")
-
-        col_f1, col_f2 = st.columns(2)
-        with col_f1:
-            failure_filter = st.multiselect(
-                "Filter by Failure Label",
-                [0, 1],
-                default=[0, 1],
-                key="de_risk_filter",
+        with st.container(border=True):
+            section_header("Data Preview")
+    
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                failure_filter = st.multiselect(
+                    "Filter by Failure Label",
+                    [0, 1],
+                    default=[0, 1],
+                    key="de_risk_filter",
+                )
+            with col_f2:
+                n_rows = st.slider("Number of rows to display", 10, 500, 100, 10, key="de_nrows")
+    
+            filtered = dataset[dataset[TARGET_COLUMN].isin(failure_filter)]
+            st.dataframe(filtered.head(n_rows), use_container_width=True, height=400)
+    
+            csv = dataset.to_csv(index=False)
+            st.download_button(
+                "Download Full Dataset (CSV)",
+                csv,
+                "ev_battery_failure_dataset.csv",
+                "text/csv",
             )
-        with col_f2:
-            n_rows = st.slider("Number of rows to display", 10, 500, 100, 10, key="de_nrows")
-
-        filtered = dataset[dataset[TARGET_COLUMN].isin(failure_filter)]
-        st.dataframe(filtered.head(n_rows), use_container_width=True, height=400)
-
-        csv = dataset.to_csv(index=False)
-        st.download_button(
-            "Download Full Dataset (CSV)",
-            csv,
-            "ev_battery_failure_dataset.csv",
-            "text/csv",
-        )
 
     with tab_stats:
-        section_header("Descriptive Statistics")
-        st.dataframe(dataset.describe().round(3), use_container_width=True)
-
-        section_header("Missing Values")
-        missing = dataset.isnull().sum()
-        if missing.sum() == 0:
-            st.success("No missing values in the dataset.")
-        else:
-            st.dataframe(missing[missing > 0])
+        with st.container(border=True):
+            section_header("Descriptive Statistics")
+            st.dataframe(dataset.describe().round(3), use_container_width=True)
+    
+            section_header("Missing Values")
+            missing = dataset.isnull().sum()
+            if missing.sum() == 0:
+                st.success("No missing values in the dataset.")
+            else:
+                st.dataframe(missing[missing > 0])
 
     with tab_dist:
         section_header("Feature Distributions")

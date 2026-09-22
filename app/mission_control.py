@@ -49,38 +49,37 @@ def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, d
     rc = _risk_color(risk_level)
 
     # ── Top Metrics Row ────────────────────────────
-    m1, m2, m3, m4 = st.columns(4)
-    with m1:
-        metric_card("Failure Probability", f"{predicted_prob * 100:.1f}", " %")
-    with m2:
-        pred_5min = forecasts[-1]["predicted_prob"] if forecasts else predicted_prob
-        metric_card("Predicted Prob (5m)", f"{pred_5min * 100:.1f}", " %")
-    with m3:
-        metric_card("Overall Risk Score", f"{risk_score:.0f}", " / 100")
-    with m4:
-        metric_card("Anomaly Score", f"{anomaly_result['score']:.4f}", "")
-
-    st.markdown('<div style="margin-top:20px; margin-bottom:20px; border-bottom:1px solid var(--border);"></div>', unsafe_allow_html=True)
+    with st.container(border=True):
+        m1, m2, m3, m4 = st.columns(4)
+        with m1:
+            metric_card("Failure Probability", f"{predicted_prob * 100:.1f}", " %")
+        with m2:
+            pred_5min = forecasts[-1]["predicted_prob"] if forecasts else predicted_prob
+            metric_card("Predicted Prob (5m)", f"{pred_5min * 100:.1f}", " %")
+        with m3:
+            metric_card("Overall Risk Score", f"{risk_score:.0f}", " / 100")
+        with m4:
+            metric_card("Anomaly Score", f"{anomaly_result['score']:.4f}", "")
 
     # ── System Status Badges ────────────────────────
-    st.markdown("<div style='display:flex; flex-direction:row; flex-wrap:wrap;'>", unsafe_allow_html=True)
-    status_badge("XGBoost Predictive Engine", "NORMAL")
-    status_badge("MLP Predictive Engine", "NORMAL")
-    status_badge("Autoencoder Anomaly", anomaly_result["label"])
-    status_badge("Risk Evaluator", risk_level)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown('<div style="margin-top:20px; margin-bottom:20px; border-bottom:1px solid var(--border);"></div>', unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown("<div style='display:flex; flex-direction:row; flex-wrap:wrap;'>", unsafe_allow_html=True)
+        status_badge("XGBoost Predictive Engine", "NORMAL")
+        status_badge("MLP Predictive Engine", "NORMAL")
+        status_badge("Autoencoder Anomaly", anomaly_result["label"])
+        status_badge("Risk Evaluator", risk_level)
+        st.markdown("</div>", unsafe_allow_html=True)
 
     # ── Main Two-Column Layout ─────────────────────
     col_left, col_right = st.columns([3, 2])
 
     with col_left:
-        section_header("Failure Risk Horizon")
-        horizon_labels = ["Now"] + [f"+{fc['horizon_min']} min" for fc in forecasts]
-        horizon_probs  = [predicted_prob * 100] + [fc["predicted_prob"] * 100 for fc in forecasts]
-
-        bar_colors = []
+        with st.container(border=True):
+            section_header("Failure Risk Horizon")
+            horizon_labels = ["Now"] + [f"+{fc['horizon_min']} min" for fc in forecasts]
+            horizon_probs  = [predicted_prob * 100] + [fc["predicted_prob"] * 100 for fc in forecasts]
+    
+            bar_colors = []
         for p in horizon_probs:
             if p < 15: bar_colors.append("#16A34A")
             elif p < 40: bar_colors.append("#D97706")

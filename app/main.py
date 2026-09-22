@@ -37,21 +37,47 @@ CUSTOM_CSS = """
     --border:       #E5E7EB;
     --border-light: #F3F4F6;
     --text-1:       #111827;
-    --text-2:       #6B7280;
-    --text-3:       #9CA3AF;
+    --text-2:       #374151;
+    --text-3:       #4B5563;
 }
 
 /* Global reset */
-.stApp {
-    background: var(--bg) !important;
-    font-family: var(--font) !important;
+* {
+    font-family: 'Inter', sans-serif;
+}
+body, .stApp {
+    background-color: var(--bg) !important;
     color: var(--text-1) !important;
+}
+
+/* Typography */
+h1 {
+    color: #1E3A5F !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.02em !important;
+}
+h2, h3 {
+    color: var(--text-1) !important;
+    font-weight: 600 !important;
+}
+
+/* Cards (Metrics, Expanders, Container Borders) */
+div[data-testid="metric-container"],
+div[data-testid="stExpander"],
+div[data-testid="stVerticalBlockBorderWrapper"] {
+    background: #FFFFFF !important;
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+div[data-testid="metric-container"] {
+    padding: 16px !important;
 }
 
 /* Hide Streamlit chrome */
 #MainMenu { visibility: hidden; }
 footer { visibility: hidden; }
-header { visibility: hidden; }
+/* header { visibility: hidden; } REMOVED so sidebar toggle remains accessible */
 
 /* ── Sidebar ── */
 section[data-testid="stSidebar"] {
@@ -59,19 +85,141 @@ section[data-testid="stSidebar"] {
     border-right: 1px solid var(--border) !important;
 }
 
+/* Sidebar Navigation Menu Styling (st.radio) */
+section[data-testid="stSidebar"] .stRadio > label {
+    display: none; /* Hide the "Navigation" title */
+}
+section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] {
+    gap: 2px;
+}
+section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label {
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: transparent;
+    border-left: 3px solid transparent;
+}
+section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label:hover {
+    background: var(--border-light);
+}
+section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label:has(input:checked) {
+    background: var(--border-light);
+    border-left: 3px solid var(--text-1);
+}
+/* Hide the actual radio circle if possible, but leave it if not */
+section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label div[data-testid="stMarkdownContainer"] p {
+    color: var(--text-1) !important;
+    font-weight: 500 !important;
+}
+section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label:has(input:checked) div[data-testid="stMarkdownContainer"] p {
+    font-weight: 700 !important;
+}
+
 /* ── Buttons ── */
-.stButton > button {
-    background: var(--text-1) !important;
-    color: #FFFFFF !important;
-    border: none !important;
-    border-radius: 4px !important;
+/* Base button styles */
+.stButton > button, 
+.stDownloadButton > button,
+button[kind="primaryFormSubmit"],
+button[kind="secondaryFormSubmit"] {
+    border-radius: 6px !important;
     font-family: 'Inter', sans-serif !important;
     font-weight: 500 !important;
-    font-size: 13px !important;
+    font-size: 14px !important;
     padding: 8px 16px !important;
+    transition: all 0.2s ease-in-out !important;
 }
-.stButton > button:hover {
-    opacity: 0.85 !important;
+
+/* Secondary Button (Default) */
+.stButton > button[kind="secondary"],
+.stDownloadButton > button[kind="secondary"],
+button[data-testid="baseButton-secondary"] {
+    background: #F8FAFC !important;
+    color: #1F2937 !important;
+    border: 1px solid #CBD5E1 !important;
+}
+.stButton > button[kind="secondary"]:hover,
+.stDownloadButton > button[kind="secondary"]:hover,
+button[data-testid="baseButton-secondary"]:hover {
+    background: #E2E8F0 !important;
+    border-color: #CBD5E1 !important;
+    color: #1F2937 !important;
+}
+.stButton > button[kind="secondary"] p,
+.stDownloadButton > button[kind="secondary"] p,
+button[data-testid="baseButton-secondary"] p {
+    color: #1F2937 !important;
+}
+
+/* Primary Button */
+.stButton > button[kind="primary"],
+.stDownloadButton > button[kind="primary"],
+button[kind="primaryFormSubmit"],
+button[data-testid="baseButton-primary"] {
+    background: #1E3A5F !important;
+    color: #FFFFFF !important;
+    border: 1px solid #1E3A5F !important;
+}
+.stButton > button[kind="primary"]:hover,
+.stDownloadButton > button[kind="primary"]:hover,
+button[kind="primaryFormSubmit"]:hover,
+button[data-testid="baseButton-primary"]:hover {
+    background: #16324F !important;
+    border-color: #16324F !important;
+    color: #FFFFFF !important;
+}
+.stButton > button[kind="primary"] p,
+.stDownloadButton > button[kind="primary"] p,
+button[kind="primaryFormSubmit"] p,
+button[data-testid="baseButton-primary"] p {
+    color: #FFFFFF !important;
+}
+
+/* ── Widget Labels & Text ── */
+/* Target sliders, number inputs, selectboxes, and their labels */
+div[data-testid="stWidgetLabel"] p,
+div[data-testid="stWidgetLabel"] label,
+.stSlider label,
+.stSelectbox label,
+.stNumberInput label {
+    color: var(--text-1) !important;
+    font-weight: 600 !important;
+}
+
+/* Helper text / captions underneath widgets */
+div[data-testid="stCaptionContainer"] p,
+.st-emotion-cache-16idsys p {
+    color: var(--text-2) !important;
+    font-weight: 500 !important;
+}
+
+/* Metric Labels */
+div[data-testid="stMetricLabel"] p, 
+div[data-testid="stMetricLabel"] label {
+    color: var(--text-2) !important;
+    font-weight: 600 !important;
+}
+
+/* Tabs */
+button[data-testid="stBaseButton-tab"] p {
+    color: var(--text-2) !important;
+    font-weight: 500 !important;
+}
+button[data-testid="stBaseButton-tab"][aria-selected="true"] p {
+    color: var(--text-1) !important;
+    font-weight: 700 !important;
+}
+
+/* Expander Headers */
+summary[data-testid="stExpanderDetails"] p,
+summary[data-testid="stExpanderDetails"] h1,
+summary[data-testid="stExpanderDetails"] h2,
+summary[data-testid="stExpanderDetails"] h3 {
+    color: var(--text-1) !important;
+    font-weight: 600 !important;
+}
+
+/* Markdown Text that gets forced to gray by Streamlit */
+div[data-testid="stMarkdownContainer"] p {
+    color: var(--text-1) !important;
 }
 </style>
 """
@@ -157,7 +305,7 @@ with st.sidebar:
         st.session_state.current_page = st.session_state.page_to_open
         del st.session_state.page_to_open
 
-    page = st.selectbox(
+    page = st.radio(
         "Navigation",
         PAGES,
         key="current_page",
