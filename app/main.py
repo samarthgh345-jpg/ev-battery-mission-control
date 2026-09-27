@@ -285,17 +285,11 @@ with st.sidebar:
 
     PAGES = [
         "Mission Control",
-        "Digital Twin",
         "Thermal Analysis",
         "What-If Simulator",
         "Dataset Explorer",
         "Model Performance",
-        "GenAI Generator",
-        "VAE Generator",
-        "XAI",
-        "Responsible AI",
-        "RAG Assistant",
-        "AI Agent Decision"
+        "XAI"
     ]
 
     if "current_page" not in st.session_state:
@@ -337,9 +331,6 @@ try:
     if page == "Mission Control":
         from app.mission_control import render
         render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, dataset)
-    elif page == "Digital Twin":
-        from app.digital_twin import render
-        render(xgb_model, ae_model_artifacts, mlp_model, metadata, dataset)
     elif page == "Thermal Analysis":
         from app.prediction import render
         render(xgb_model, ae_model_artifacts, mlp_model, metadata, dataset)
@@ -352,23 +343,8 @@ try:
     elif page == "Model Performance":
         from app.model_performance import render
         render(xgb_model, mlp_model, metadata, dataset)
-    elif page == "GenAI Generator":
-        from app.genai_generator import render
-        render()
-    elif page == "VAE Generator":
-        from app.vae_ui import render
-        render()
     elif page == "XAI":
         from app.xai import render
         render(xgb_model, mlp_model, shap_explainer, metadata, dataset)
-    elif page == "Responsible AI":
-        from app.responsible_ai import render
-        render()
-    elif page == "RAG Assistant":
-        from app.rag_assistant import render
-        render()
-    elif page == "AI Agent Decision":
-        from app.agent import render
-        render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, dataset)
 except Exception as e:
     st.error(f"Error loading page '{page}': {e}")

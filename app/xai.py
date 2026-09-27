@@ -9,13 +9,12 @@ import numpy as np
 import plotly.graph_objects as go
 from src.prediction_engine import predict_failure_probability, get_default_features
 from src.shap_explainer import explain_global, explain_local
-from src.lime_explainer import create_lime_explainer
 from app.ui_components import page_header, section_header, CHART_LAYOUT, metric_card
 
 def render(xgb_model, mlp_model, shap_explainer, metadata, dataset):
-    page_header("Model Explainability", "SHAP/LIME Feature Contributions & Model Transparency")
+    page_header("Model Explainability", "SHAP Feature Contributions & Model Transparency")
 
-    tab1, tab2, tab3 = st.tabs(["Local Explanation (SHAP)", "Local Explanation (LIME)", "Global Importance (SHAP)"])
+    tab1, tab2 = st.tabs(["Local Explanation (SHAP)", "Global Importance (SHAP)"])
 
     # ── Local Explanation (SHAP) ──────────────────────────
     with tab1:
@@ -90,38 +89,8 @@ def render(xgb_model, mlp_model, shap_explainer, metadata, dataset):
                 
                 st.markdown(f'<div style="font-size:12px; color:var(--text-2);">{exp["explanation_text"]}</div>', unsafe_allow_html=True)
 
-    # ── Local Explanation (LIME) ──────────────────────────
-    with tab2:
-        with st.container(border=True):
-            section_header("LIME Local Surrogate Explanation")
-            st.markdown("<div style='font-size:13px; color:var(--text-2); margin-bottom:12px;'>LIME approximates the model locally using a linear surrogate.</div>", unsafe_allow_html=True)
-            
-            if st.button("Generate LIME Explanation", type="primary", key="lime_btn"):
-                with st.spinner("Training LIME surrogate..."):
-                    lime_exp = create_lime_explainer(mlp_model)
-                    if lime_exp is None:
-                        st.error("Failed to create LIME explainer. Check that the dataset file exists.")
-                    else:
-                        lime_result = lime_exp.explain_prediction(features, num_features=10)
-                        
-                        lime_html = "<div style='display:flex; flex-direction:column; gap:8px; margin-top:20px;'>"
-                        for contrib in lime_result["contributions"]:
-                            condition = contrib["condition"]
-                            weight = contrib["weight"]
-                            color = "#DC2626" if weight > 0 else "#16A34A"
-                            bar_w = min(100, abs(weight) * 300)
-                            
-                            lime_html += f"<div style='display:flex; align-items:center; background-color:var(--surface); border:1px solid var(--border); padding:10px; border-radius:6px; margin-bottom:8px;'>"
-                            lime_html += f"<div style='width:300px; font-family:var(--font); font-size:13px; font-weight:500;'>{condition}</div>"
-                            lime_html += f"<div style='width:100px; font-family:var(--mono); font-size:13px; color:{color}; font-weight:700; text-align:right;'>{weight:+.3f}</div>"
-                            lime_html += f"<div style='flex-grow:1; margin-left:15px; height:8px; background-color:var(--border-light); border-radius:4px; overflow:hidden;'>"
-                            lime_html += f"<div style='width:{bar_w}%; height:100%; background-color:{color};'></div>"
-                            lime_html += "</div></div>"
-                        lime_html += "</div>"
-                        st.markdown(lime_html, unsafe_allow_html=True)
-
     # ── Global Importance (SHAP) ──────────────────────────
-    with tab3:
+    with tab2:
         with st.container(border=True):
             section_header("Global Feature Importance")
             if st.button("Compute Global Importance (Slow)", type="primary"):
@@ -140,15 +109,15 @@ def render(xgb_model, mlp_model, shap_explainer, metadata, dataset):
                         text=[f"{v:.3f}" for v in global_exp["importance"][::-1]],
                         textposition="outside",
                         textfont=dict(family="JetBrains Mono", size=12, color="#111827"),
-                    cliponaxis=False,
-                ))
-                layout_opts = CHART_LAYOUT.copy()
-                layout_opts.update(
-                    height=500,
-                    margin=dict(l=200, r=40, t=20, b=40),
-                    xaxis=dict(title="Mean |SHAP Value| (average impact on prediction)", zeroline=True, zerolinecolor="#E5E7EB", showgrid=False),
-                    yaxis=dict(showgrid=False),
-                    showlegend=False,
-                )
-                fig.update_layout(**layout_opts)
-                st.plotly_chart(fig, use_container_width=True)
+                        cliponaxis=False,
+                    ))
+                    layout_opts = CHART_LAYOUT.copy()
+                    layout_opts.update(
+                        height=500,
+                        margin=dict(l=200, r=40, t=20, b=40),
+                        xaxis=dict(title="Mean |SHAP Value| (average impact on prediction)", zeroline=True, zerolinecolor="#E5E7EB", showgrid=False),
+                        yaxis=dict(showgrid=False),
+                        showlegend=False,
+                    )
+                    fig.update_layout(**layout_opts)
+                    st.plotly_chart(fig, use_container_width=True)

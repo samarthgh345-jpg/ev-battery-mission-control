@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 from src.prediction_engine import predict_failure_probability, get_default_features
 from src.forecasting import forecast_failure_probability
 from src.anomaly_detection import detect_anomaly
-from src.thermal_agent_graph import run_agent_graph
+from src.risk_engine import assess_thermal_risk
 from app.ui_components import page_header, section_header, metric_card, status_badge, info_panel, CHART_LAYOUT, render_html
 
 def _risk_color(level: str) -> str:
@@ -32,18 +32,34 @@ def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, d
     ae_model, ae_scaler, ae_imputer, ae_threshold = ae_model_artifacts
     anomaly_result = detect_anomaly(ae_model, ae_scaler, ae_imputer, ae_threshold, features)
 
-    if "mc_agent_state" in st.session_state:
-        ag = st.session_state.mc_agent_state
-    else:
-        ag = run_agent_graph(xgb_model, ae_model_artifacts, mlp_model, features)
+    risk_assessment = assess_thermal_risk(
+        current_temp=features.get("cell_temperature_max", 30.0),
+        predicted_temp_5min=forecasts[-1]["predicted_temp"] if forecasts and "predicted_temp" in forecasts[-1] else features.get("cell_temperature_max", 30.0),
+        temp_rate_per_min=0.0,
+        anomaly_score=anomaly_result["score"],
+        hotspot_risk_pct=predicted_prob * 100
+    )
         
-    risk_level = ag["risk_level"]
-    risk_score = ag["risk_score"]
+    risk_level = risk_assessment["risk_level"]
+    risk_score = risk_assessment["risk_score"]
     
+    # Generate simple recommendation
+    if risk_level == "CRITICAL":
+        decision = "IMMEDIATE SHUTDOWN"
+        reason = "Critical thermal runaway risk detected."
+    elif risk_level == "HIGH":
+        decision = "THROTTLE POWER"
+        reason = "High thermal risk. Reduce load to cool battery."
+    elif risk_level == "CAUTION":
+        decision = "INCREASE COOLING"
+        reason = "Temperatures rising. Preemptive cooling advised."
+    else:
+        decision = "MAINTAIN OPERATION"
+        reason = "All systems operating within normal parameters."
+        
     agent_decision = {
-        'decision': ag['selected_action'],
-        'expected_result': ag['decision_reason'],
-        'options_evaluated': ag['simulations']
+        'decision': decision,
+        'expected_result': reason
     }
 
     rc = _risk_color(risk_level)
@@ -118,7 +134,7 @@ def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, d
         # Recommendation Callout Box
         rec_html = f"""
         <div style="background-color: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 16px;">
-            <div style="font-size: 11px; font-weight: 600; color: var(--text-2); text-transform: uppercase; margin-bottom: 8px;">Action Recommended by LangGraph</div>
+            <div style="font-size: 11px; font-weight: 600; color: var(--text-2); text-transform: uppercase; margin-bottom: 8px;">Action Recommended by Risk Engine</div>
             <div style="font-size: 18px; font-weight: 700; color: {rc}; margin-bottom: 12px;">{agent_decision['decision']}</div>
             <div style="font-size: 13px; color: var(--text-2); margin-bottom: 16px;">{agent_decision['expected_result']}</div>
         </div>
@@ -126,12 +142,12 @@ def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, d
         render_html(rec_html)
         
         st.markdown("<br/>", unsafe_allow_html=True)
-        info_panel("The above action is calculated via LangGraph utilizing real-time MLP predictions and simulation trees.")
+        info_panel("The above action is calculated via Risk Engine utilizing real-time MLP predictions and thermal boundaries.")
 
     st.markdown('<div style="margin-top:20px; margin-bottom:20px; border-bottom:1px solid var(--border);"></div>', unsafe_allow_html=True)
     
     # ── Simulation Buttons ─────────────────────────
-    b1, b2, b3, b4 = st.columns(4)
+    b1, b2, b3 = st.columns(3)
     with b1:
         if st.button("Why this prediction?", use_container_width=True, key="mc_why"):
             st.session_state.page_to_open = "XAI"
@@ -144,9 +160,3 @@ def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, d
         if st.button("Start live simulation", use_container_width=True, key="mc_live"):
             st.session_state.page_to_open = "Thermal Analysis"
             st.rerun()
-    with b4:
-        st.markdown('<div class="danger-btn">', unsafe_allow_html=True)
-        if st.button("Simulate thermal stress", use_container_width=True, key="mc_stress"):
-            st.session_state.page_to_open = "AI Agent Decision"
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)

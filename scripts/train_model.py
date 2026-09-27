@@ -1,7 +1,7 @@
 """
 Train Model Pipeline
 =====================
-End-to-end: train PyTorch Failure Classifier → train XGBoost Baseline → train Autoencoder → train VAE → train cGAN
+End-to-end: train PyTorch Failure Classifier → train XGBoost Baseline → train Autoencoder
 """
 
 import sys
@@ -43,11 +43,7 @@ def main():
     # 3. Train Autoencoder (Anomaly Detection)
     run_script(PROJECT_ROOT / "src" / "train_autoencoder.py")
     
-    # 4. Train VAE
-    run_script(PROJECT_ROOT / "src" / "train_vae.py")
-    
-    # 5. Train cGAN
-    run_script(PROJECT_ROOT / "src" / "train_cgan.py")
+
 
     print("\n" + "=" * 60)
     print("  [OK] ALL MODELS TRAINED AND SAVED SUCCESSFULLY")
