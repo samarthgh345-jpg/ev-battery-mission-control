@@ -23,11 +23,15 @@ def get_simulation_state(mode: str, step: int, seed: int = 42) -> dict:
     combined_drift = (drift1 + drift2 + drift3) / 3.0
 
     if mode == "NORMAL":
-        features["cell_temperature_avg"] = 30.0 + combined_drift * 1.2 + noise(0.2)
+        features["cycle_count"] = 247.0 + noise(5.0)
+        features["state_of_charge"] = 54.8 + combined_drift * 2.0 + noise(1.0)
+        features["depth_of_discharge"] = 37.9 + noise(1.0)
+        features["cell_voltage_avg"] = 3.27 + combined_drift * 0.05 + noise(0.01)
+        features["cell_temperature_avg"] = 21.0 + combined_drift * 1.2 + noise(0.2)
         features["cell_temperature_max"] = features["cell_temperature_avg"] + 1.5 + noise(0.1)
-        features["internal_resistance"] = 1.5 + combined_drift * 0.05 + noise(0.01)
-        features["cooling_system_health"] = 98.0 + noise(1.0)
-        features["average_charge_power_kw"] = 45.0 + combined_drift * 5 + noise(2.0)
+        features["internal_resistance"] = 0.53 + combined_drift * 0.02 + noise(0.01)
+        features["cooling_system_health"] = 74.0 + combined_drift * 2.0 + noise(1.0)
+        features["average_charge_power_kw"] = 40.0 + combined_drift * 3.0 + noise(2.0)
 
     elif mode == "HIGH_LOAD":
         ramp = min(step * 0.5, 20.0)
