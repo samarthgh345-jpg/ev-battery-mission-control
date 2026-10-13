@@ -22,7 +22,7 @@ class MLPPredictor:
         
     def predict_proba(self, df: pd.DataFrame) -> np.ndarray:
         """Returns probability of failure (class 1)."""
-        X_imputed = self.imputer.transform(df[FEATURE_COLUMNS].values)
+        X_imputed = self.imputer.transform(df[FEATURE_COLUMNS])
         X_scaled = self.scaler_x.transform(X_imputed)
         with torch.no_grad():
             logits = self.model(torch.FloatTensor(X_scaled)).numpy().squeeze()
@@ -71,20 +71,20 @@ def predict_batch(model, df: pd.DataFrame) -> np.ndarray:
     return model.predict_proba(df[FEATURE_COLUMNS])[:, 1]
 
 def get_default_features() -> dict:
-    """Return a set of moderate/normal operating conditions for the new dataset."""
+    """Return a set of calibrated nominal operating conditions matching normal battery dataset distribution."""
     return {
-        "cycle_count": 500,
-        "state_of_charge": 80.0,
-        "depth_of_discharge": 20.0,
-        "cell_voltage_avg": 3.8,
-        "cell_voltage_std": 0.01,
-        "cell_temperature_avg": 30.0,
-        "cell_temperature_max": 32.0,
-        "internal_resistance": 1.5,
-        "charge_efficiency": 95.0,
-        "fast_charge_ratio": 0.1,
-        "average_charge_power_kw": 50.0,
+        "cycle_count": 248,
+        "state_of_charge": 55.0,
+        "depth_of_discharge": 38.0,
+        "cell_voltage_avg": 3.28,
+        "cell_voltage_std": 0.016,
+        "cell_temperature_avg": 21.0,
+        "cell_temperature_max": 28.5,
+        "internal_resistance": 0.53,
+        "charge_efficiency": 95.5,
+        "fast_charge_ratio": 0.32,
+        "average_charge_power_kw": 40.0,
         "charging_interruptions": 1,
-        "cooling_system_health": 100.0,
-        "average_ambient_temperature": 25.0,
+        "cooling_system_health": 74.0,
+        "average_ambient_temperature": 17.5,
     }

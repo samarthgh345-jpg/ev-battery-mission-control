@@ -48,7 +48,7 @@ def detect_anomaly(model, scaler, imputer, threshold, features: dict) -> dict:
     for feat in ANOMALY_FEATURES:
         row.append(features.get(feat, 0.0))
         
-    X = np.array([row])
+    X = pd.DataFrame([row], columns=ANOMALY_FEATURES)
     
     # Preprocess
     X_imputed = imputer.transform(X)

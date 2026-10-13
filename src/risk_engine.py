@@ -55,9 +55,6 @@ def assess_thermal_risk(
     if current_temp > t_thresh["critical_above"]:
         temp_risk = 3
         factors.append(f"Temperature {current_temp:.1f}°C exceeds critical threshold")
-    elif current_temp > t_thresh["high_max"]:
-        temp_risk = 3
-        factors.append(f"Temperature {current_temp:.1f}°C in critical range")
     elif current_temp > t_thresh["caution_max"]:
         temp_risk = 2
         factors.append(f"Temperature {current_temp:.1f}°C in high range")
@@ -73,10 +70,10 @@ def assess_thermal_risk(
         if predicted_temp_5min > t_thresh["critical_above"]:
             pred_risk = 3
             factors.append(f"Predicted temperature {predicted_temp_5min:.1f}°C (critical)")
-        elif predicted_temp_5min > t_thresh["high_max"]:
+        elif predicted_temp_5min > t_thresh["caution_max"]:
             pred_risk = 2
             factors.append(f"Predicted temperature {predicted_temp_5min:.1f}°C (high)")
-        elif predicted_temp_5min > t_thresh["caution_max"]:
+        elif predicted_temp_5min > t_thresh["normal_max"]:
             pred_risk = 1
             factors.append(f"Predicted temperature {predicted_temp_5min:.1f}°C (caution)")
 
@@ -85,10 +82,10 @@ def assess_thermal_risk(
     if abs(temp_rate_per_min) > r_thresh["critical_above"]:
         rate_risk = 3
         factors.append(f"Rapid temperature increase: {temp_rate_per_min:.2f}°C/min")
-    elif abs(temp_rate_per_min) > r_thresh["high_max"]:
+    elif abs(temp_rate_per_min) > r_thresh["caution_max"]:
         rate_risk = 2
         factors.append(f"High temperature rate: {temp_rate_per_min:.2f}°C/min")
-    elif abs(temp_rate_per_min) > r_thresh["caution_max"]:
+    elif abs(temp_rate_per_min) > r_thresh["normal_max"]:
         rate_risk = 1
         factors.append(f"Elevated temperature rate: {temp_rate_per_min:.2f}°C/min")
 
@@ -97,16 +94,17 @@ def assess_thermal_risk(
     if hotspot_risk_pct > h_thresh["critical_above"]:
         hot_risk = 3
         factors.append(f"Hotspot risk {hotspot_risk_pct:.0f}% (critical)")
-    elif hotspot_risk_pct > h_thresh["high_max"]:
+    elif hotspot_risk_pct > h_thresh["caution_max"]:
         hot_risk = 2
         factors.append(f"Hotspot risk {hotspot_risk_pct:.0f}% (high)")
-    elif hotspot_risk_pct > h_thresh["caution_max"]:
+    elif hotspot_risk_pct > h_thresh["normal_max"]:
         hot_risk = 1
         factors.append(f"Hotspot risk {hotspot_risk_pct:.0f}% (elevated)")
 
     # Anomaly boost
     anomaly_risk = 0
-    if anomaly_score < -0.1:
+    anomaly_threshold = config.get("anomaly_threshold", 0.1929)
+    if anomaly_score > anomaly_threshold or anomaly_score < -0.1:
         anomaly_risk = 1
         factors.append("Anomalous operating conditions detected")
 

@@ -16,7 +16,7 @@ def create_explainer(model: MLPPredictor, X_background: pd.DataFrame):
     Create a SHAP DeepExplainer for the PyTorch model.
     X_background should be a small sample (e.g. 100 rows) of the training data.
     """
-    X_bg_imputed = model.imputer.transform(X_background[FEATURE_COLUMNS].values)
+    X_bg_imputed = model.imputer.transform(X_background[FEATURE_COLUMNS])
     X_bg_scaled = model.scaler_x.transform(X_bg_imputed)
     bg_tensor = torch.FloatTensor(X_bg_scaled)
     
@@ -26,7 +26,7 @@ def create_explainer(model: MLPPredictor, X_background: pd.DataFrame):
 
 def explain_global(explainer, model: MLPPredictor, X_sample: pd.DataFrame) -> dict:
     """Compute global SHAP feature importance."""
-    X_imputed = model.imputer.transform(X_sample[FEATURE_COLUMNS].values)
+    X_imputed = model.imputer.transform(X_sample[FEATURE_COLUMNS])
     X_scaled = model.scaler_x.transform(X_imputed)
     sample_tensor = torch.FloatTensor(X_scaled)
     
@@ -48,7 +48,7 @@ def explain_global(explainer, model: MLPPredictor, X_sample: pd.DataFrame) -> di
 def explain_local(explainer, model: MLPPredictor, features: dict) -> dict:
     """Compute SHAP contributions for a single prediction."""
     df = pd.DataFrame([features])[FEATURE_COLUMNS]
-    X_imputed = model.imputer.transform(df.values)
+    X_imputed = model.imputer.transform(df)
     X_scaled = model.scaler_x.transform(X_imputed)
     obs_tensor = torch.FloatTensor(X_scaled)
     

@@ -46,22 +46,40 @@ def generate_cell_temperature_grid(
     seed: int = None,
 ) -> np.ndarray:
     """
-    Generate a simulated cell temperature grid for digital twin visualization.
+    Generate an illustrative cell temperature grid for scenario visualization.
+    Places the hotspot peak at the center cell and balances background cells so that
+    the grid's arithmetic mean strictly equals cell_temp_avg and maximum equals cell_temp_max.
     """
     rng = np.random.default_rng(seed)
+    n = rows * cols
+    effective_max = max(cell_temp_avg, cell_temp_max)
 
-    # Base grid at average temperature
-    grid = np.full((rows, cols), cell_temp_avg, dtype=float)
+    if abs(effective_max - cell_temp_avg) < 1e-4:
+        noise = rng.normal(0, 0.2, (rows, cols))
+        noise -= noise.mean()
+        grid = cell_temp_avg + noise
+        return np.round(grid, 1)
 
-    # Add minor noise around average
-    grid += rng.normal(0, 0.5, (rows, cols))
-
-    # Add a "hotspot" cell at exactly the max temperature
     hot_r, hot_c = rows // 2, cols // 2
-    grid[hot_r, hot_c] = cell_temp_max
-    
-    # Ensure average doesn't drift too far, though in a 12 cell pack,
-    # if one cell is max, others must be slightly lower than average to maintain true average.
-    # We ignore strict arithmetic average for the sake of the visualization feeling intuitive.
+    rem_n = n - 1
+    rem_mean = (n * cell_temp_avg - effective_max) / rem_n
+
+    # Generate small zero-mean noise for remaining cells
+    noise = rng.normal(0, 0.25, rem_n)
+    noise -= noise.mean()
+    rem_vals = rem_mean + noise
+    rem_vals = np.clip(rem_vals, 5.0, effective_max)
+    # Ensure remaining cells sum exactly to (n * avg - max)
+    rem_vals = rem_vals + (rem_mean - rem_vals.mean())
+
+    grid = np.zeros((rows, cols), dtype=float)
+    idx = 0
+    for r in range(rows):
+        for c in range(cols):
+            if r == hot_r and c == hot_c:
+                grid[r, c] = effective_max
+            else:
+                grid[r, c] = rem_vals[idx]
+                idx += 1
 
     return np.round(grid, 1)

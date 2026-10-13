@@ -1,168 +1,144 @@
 # ⚡ EV Battery Mission Control
 
-> **Explainable AI-Based Battery Thermal Management & Digital Twin**
+> **AI-Powered Thermal Safety and Battery Failure Prediction System**
 
-An Advanced Artificial Intelligence prototype for EV battery thermal monitoring, temperature prediction, thermal-risk assessment, and intelligent cooling decision support.
+A modern industrial mission control dashboard for Electric Vehicle Battery Thermal Management Systems (BTMS). It combines physics-based multi-cell simulation, explainable AI (SHAP), trained machine learning predictors (PyTorch MLP, XGBoost, Autoencoder), and deterministic rule-based decision support to monitor battery health and mitigate thermal runaway risk.
 
-**⚠️ ACADEMIC / PROOF-OF-CONCEPT DISCLAIMER:**
-This is a research/educational proof-of-concept system using synthetic/simulation-inspired data. It is NOT a certified battery safety system, NOT a production-ready BMS, and NOT an experimentally validated thermal runaway prediction tool.
+![Dashboard Preview](screenshots/dashboard_preview.png)
 
-## 🌟 1. Project Overview
+---
 
-The EV Battery Mission Control is a comprehensive Streamlit dashboard that acts as a virtual "Mission Control" center. It combines multiple AI/ML techniques to monitor and manage simulated battery thermal conditions, providing predictive safety and intelligent insights.
+## 🚀 Key Features
 
-## 🎯 2. Problem Statement
+- **Mission Control Console**: Real-time 24-cell (4×6 planar module) thermal grid with color-coded safety bands (Normal <36°C, Moderate 36–42°C, Caution 42–48°C, Critical ≥48°C) and localized hotspot tracking (Cell C7).
+- **Cooling Controls & Quasi-Steady Recalculation**: Adjust liquid coolant mass flow rate (0.010–0.040 kg/s) with immediate quasi-steady convective thermal recalculation, or 1-click **Apply Suggested Cooling**.
+- **Operating Scenario Switching**: Toggle operating profiles (`NORMAL`, `HIGH_LOAD`, `THERMAL_STRESS`) or restore calibrated nominal parameters via **Reset to Baseline**.
+- **Deterministic Thermal AI Decision Support**: Transparent rule-based decision engine (Observation, Reasoning, Prediction, Action) evaluating cell gradients, failure probabilities, and anomaly scores.
+- **Thermal Analysis & Dynamic Simulation**: Continuous lumped-capacitance ODE integration with forward stepping (+5s step, time integration), live temperature trends, and multi-horizon failure forecasts (+1m, +3m, +5m).
+- **Autoencoder Anomaly Detection**: Unsupervised PyTorch Autoencoder tracking reconstruction error (MSE) against a calibrated threshold to detect multivariate operational drift.
+- **What-If Simulator with Live Explainability**: Real-time parameter perturbation sandbox (Hotspot temperature, load current, cooling health, resistance, SoC) that explains each specific physical change immediately in clear language.
+- **Side-by-Side Thermal Grids**: Visual comparison between Nominal Baseline and Hypothetical What-If thermal heatmaps.
+- **Explainable AI (SHAP)**: Feature attributions explaining the physical drivers of elevated failure probability (temperature, internal resistance, charge power, cooling health).
+- **Engineering Prototype Notice**: Clear disclaimers distinguishing deterministic physics ODEs and calibrated machine learning models from physical vehicle hardware actuators.
 
-Thermal runaway in Lithium-Ion batteries is a critical safety hazard for Electric Vehicles. Traditional Battery Management Systems (BMS) often rely on simple threshold-based rules. This project aims to demonstrate how an ensemble of Machine Learning models, Generative AI, and Agentic workflows can predict thermal risks *before* they occur, explain *why* the risk exists, and recommend optimal cooling strategies.
+---
 
-## ✨ 3. Key Features
+## 🛠️ Project Architecture
 
-- **Real-time Monitoring & Prediction**: Forecasts battery temperatures using Machine Learning.
-- **Explainable AI (XAI)**: Understand model decisions locally and globally.
-- **Generative AI for Telemetry**: Synthesizes edge-case data using cGAN and compresses signals via VAE.
-- **RAG Knowledge Assistant**: Instant engineering answers grounded in BTMS literature.
-- **Agentic Decision Support**: A deterministic workflow that evaluates risk and recommends action.
-- **Responsible AI**: Strict separation between conversational LLMs and critical safety logic.
-
-## 🏗️ 4. System Architecture
-
-```mermaid
-graph TD
-    SENSORS[Simulated Sensors] --> DP[Data Preprocessing]
-    DP --> XGB[XGBoost / MLP Predictors]
-    DP --> IF[Isolation Forest]
-    XGB --> PRED[Temperature Forecast]
-    IF --> ANOM[Thermal Anomaly Status]
-    PRED --> RE[Thermal Risk Engine]
-    ANOM --> RE
-    RE --> AGENT[LangGraph AI Agent]
-    AGENT --> ACTION[Cooling Action]
-    XGB --> SHAP[SHAP / LIME Explainer]
-    ACTION --> SIM[Simulated Cooling Response]
-    SHAP --> DASH[Mission Control Dashboard]
-    SIM --> DASH
+```text
+ev-battery-mission-control/
+│
+├── app/
+│   ├── main.py                     # Unified mission control dashboard & navigation router
+│   ├── mission_control.py          # Primary battery console, 24-cell grid, cooling & scenario controls
+│   ├── prediction.py               # Thermal Analysis page: forward ODE stepping & multi-horizon forecast
+│   ├── what_if.py                  # What-If Simulator: live parameter explainability & side-by-side grids
+│   ├── ui_components.py            # Reusable KPI metric cards, headers, status badges
+│   └── styles.py                   # Centralized industrial design system & clean CSS
+│
+├── data/
+│   ├── ev_battery_failure_dataset.csv  # 200,000-row telemetry dataset (77.2 MB)
+│   ├── btms_dataset.csv                # BTMS thermal telemetry dataset
+│   ├── data_dictionary.csv             # Feature definitions and units
+│   └── feature_descriptions.md         # Domain documentation for BTMS features
+│
+├── models/
+│   ├── failure_predictor/          # Trained PyTorch MLP classifier, scaler, imputer
+│   ├── autoencoder/                # Trained PyTorch Autoencoder anomaly detector & threshold
+│   ├── xgboost_failure_model.joblib # Serialized XGBoost failure prediction model
+│   ├── model_metadata.json         # MLP model schema and performance metrics
+│   └── model_metadata_xgb.json     # XGBoost hyperparameters and training metrics
+│
+├── src/
+│   ├── __init__.py                 # Python package initializer
+│   ├── anomaly_detection.py        # PyTorch Autoencoder reconstruction & thresholding
+│   ├── decision_engine.py          # Deterministic safety rules & cooling recommendations
+│   ├── forecasting.py              # Multi-horizon (+1m, +3m, +5m) forward feature projection
+│   ├── prediction_engine.py        # Model loading & inference abstraction (MLP / XGBoost)
+│   ├── risk_engine.py              # Multi-factor thermal risk assessment & boundary rules
+│   ├── shap_explainer.py           # Model explainability & feature attributions
+│   ├── simulation_engine.py        # Scenario state generator (NORMAL, HIGH_LOAD, THERMAL_STRESS)
+│   ├── thermal_simulator.py        # 24-cell lumped-capacitance ODE heat conduction physics engine
+│   └── what_if_explainer.py        # Parameter perturbation mechanics & explainability engine
+│
+├── tests/
+│   ├── test_audit_functional_correctness.py  # End-to-end model response & cooling tests
+│   ├── test_decision_engine.py               # Deterministic rule engine validation
+│   ├── test_mission_control_system.py        # System integration & mode anomaly tests
+│   ├── test_risk_threshold_boundaries.py     # Continuous risk boundary threshold tests
+│   ├── test_thermal_simulator.py             # 24-cell ODE dynamics & runaway unit tests
+│   └── test_what_if_explainer.py             # Live parameter explainability & schema tests
+│
+├── .gitignore                      # Git rules for venv, cache, datasets, and models
+├── requirements.txt                # Python package dependencies
+├── README.md                       # Project documentation & setup instructions
+└── run.py                          # Launcher script with environment & dataset verification
 ```
 
-## 📊 5. Dataset
+---
 
-This project uses a **200K EV Battery Failure Prediction Dataset**.
+## 💻 Quick Start
 
-- **Type**: Synthetic failure classification dataset
-- **Size**: 200,000 rows
-- **Input Features**: 14 conservative primary features
-- **Target**: `battery_failure` (Binary Classification)
-
-**Conservative Primary Feature Set:**
-`cycle_count`, `state_of_charge`, `depth_of_discharge`, `cell_voltage_avg`, `cell_voltage_std`, `cell_temperature_avg`, `cell_temperature_max`, `internal_resistance`, `charge_efficiency`, `fast_charge_ratio`, `average_charge_power_kw`, `charging_interruptions`, `cooling_system_health`, `average_ambient_temperature`.
-
-**Leakage Prevention:**
-Derived risk and diagnostic features were excluded from the primary model because they may encode information closely related to the synthetic failure-generation process and could introduce target leakage or unrealistic predictive information. Excluded features include: `thermal_runaway_risk`, `battery_stress_index`, `aging_score`, `thermal_health_score`, `charging_quality_score`, `driving_stress_score`, `predicted_remaining_life_cycles`.
-
-## 🧠 6. Machine Learning Models
-
-1. **PyTorch MLP**: Primary deep learning multi-layer perceptron for failure probability prediction.
-2. **XGBoost**: Secondary baseline model for failure prediction and comparison.
-3. **Autoencoder**: Multivariate anomaly detection to flag unusual operating states.
-4. **VAE (Variational Autoencoder)**: Compresses the 14D sensor signal into a 4D latent space for dimensionality reduction and reconstruction.
-5. **cGAN (Conditional GAN)**: Synthesizes realistic battery telemetry conditioned on the target class (`battery_failure`).
-
-## 🔍 7. Explainable AI
-
-- **SHAP (SHapley Additive exPlanations)**: Provides both global feature importance and local waterfall charts to explain individual predictions.
-- **LIME (Local Interpretable Model-agnostic Explanations)**: Offers an alternative localized perturbation-based explanation for model transparency. *Note: LIME is integrated for local explanations. Certain low-variance input samples may cause numerical issues in the underlying perturbation procedure; this is a limitation of the local explanation process rather than the primary prediction model.*
-
-## 📚 8. RAG Assistant
-
-An integrated Engineering Knowledge Assistant to query BTMS concepts.
-- **Vector Store**: FAISS
-- **Embeddings**: SentenceTransformers (`all-MiniLM-L6-v2`)
-- **Knowledge Base**: Curated markdown documents containing BTMS fundamentals, cooling strategies, and safety definitions.
-- **LLM Fallback**: If no LLM provider (OpenAI/Ollama) is available, the system gracefully falls back to displaying the raw retrieved context snippets safely without markdown artifacts.
-
-## 🤖 9. AI Agent / LangGraph workflow
-
-A structured, state-based workflow (LangGraph) handles safety decisions deterministically:
-1. **Observe**: Ingest 14-feature sensor vector.
-2. **Predict**: Execute XGBoost and MLP models.
-3. **Evaluate Risk**: Determine thermal and hotspot risk.
-4. **Simulate & Compare**: Simulate cooling interventions (e.g., 20%, 35%, Emergency) and compare predicted outcomes.
-5. **Decide & Apply**: Select the optimal cooling strategy based on safety vs. energy cost.
-
-## ⚖️ 10. Responsible AI
-
-Safety is paramount. In this architecture:
-- **LLM Independence**: The RAG Assistant LLM does **NOT** directly control battery safety decisions.
-- **Deterministic Agent**: Safety decisions, risk evaluations, and cooling recommendations are generated by the deterministic LangGraph workflow and ML regression models.
-- **Transparency**: All agent decisions provide transparent reasoning, separating safety logic from conversational AI.
-
-## 🛠️ 11. Technology Stack
-
-- **Frontend**: Streamlit, Plotly, HTML/CSS
-- **Machine Learning**: Scikit-Learn, XGBoost, PyTorch
-- **Agentic/RAG Framework**: LangGraph, LangChain, FAISS, SentenceTransformers
-- **Explainability**: SHAP, LIME
-- **Data Handling**: Pandas, NumPy
-
-## 📁 12. Project Structure
-
-- `app/`: Streamlit frontend pages (Mission Control, Digital Twin, VAE, etc.)
-- `src/`: Core Python modules (preprocessing, models, agent graph, RAG pipeline)
-- `data/`: Synthetic dataset and Markdown knowledge base.
-- `models/`: Trained `.pt`, `.pkl`, and `.joblib` model artifacts.
-- `config/`: Application configuration.
-
-## 🚀 13. Installation
-
-1. **Clone the repository:**
+### 1. Clone & Navigate to Project Directory
 ```bash
-git clone <repository_url>
+git clone <repository-url>
 cd ev-battery-mission-control
 ```
 
-2. **Create a virtual environment:**
-```bash
+### 2. Create and Activate Virtual Environment
+**Windows (PowerShell):**
+```powershell
 python -m venv .venv
-# Activate on Windows:
-.venv\Scripts\activate
-# Activate on Linux/Mac:
+.\.venv\Scripts\Activate.ps1
+```
+*(If PowerShell script execution is restricted, run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` first).*
+
+**macOS / Linux:**
+```bash
+python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-3. **Install dependencies:**
+### 3. Install Dependencies
 ```bash
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-4. **Environment Variables (Optional for RAG LLM):**
-Copy `.env.example` to `.env` and add your OpenAI API key if you want conversational RAG.
+### 4. Run Automated Test Suite
+```bash
+python -m pytest
+```
 
-## 🏃 14. How to Run
-
-Launch the Mission Control dashboard:
+### 5. Launch the Dashboard
+Using the system initialization launcher:
+```bash
+python run.py
+```
+Or directly via Streamlit:
 ```bash
 streamlit run app/main.py
 ```
 
-## 🧪 15. Example Workflow
+The Mission Control dashboard will open in your browser at `http://localhost:8501`.
 
-1. Navigate to **Mission Control** to view the live dashboard.
-2. Click **Start live simulation** to observe dynamic sensor changes and ML predictions.
-3. Click **Simulate thermal stress** to watch the LangGraph agent intervene during a simulated runaway event.
-4. Open the **XAI** page to see exactly why the temperature was predicted.
-5. Visit the **RAG Assistant** to query the system about "Thermal Runaway causes".
+---
 
-## 🚧 16. Limitations
+## 📂 Dataset Connectivity & Demonstration Modes
 
-- The dataset is purely synthetic and does not fully capture complex real-world electro-thermal dynamics.
-- Cooling simulation calculations (What-If and Agent simulations) are rule-based approximations for demonstration purposes.
-- VAE and cGAN architectures are simplified for CPU inference.
+The launcher script `run.py` and application automatically verify dataset presence:
+- **Connected Mode:** When `data/ev_battery_failure_dataset.csv` is present (77.2 MB, 200,000 records), the dashboard initializes with `Dataset Status: CONNECTED` and utilizes full background distributions for SHAP explainability.
+- **Calibrated Demo Mode:** If the dataset is absent, the application gracefully operates using pre-calibrated baseline telemetry vectors, trained serialized model artifacts, and the physical ODE thermal simulation.
 
-## 🔮 17. Future Scope
+---
 
-- Integration with real BMS CAN-bus telemetry.
-- Expanding the Digital Twin with real-time 3D CFD (Computational Fluid Dynamics) approximations.
-- Implementing Reinforcement Learning for dynamic cooling optimization.
+## 🔬 Thermal Physics Modeling
 
-## ⚖️ 18. Disclaimer
+The 24-cell pack dynamics are modeled using forward sub-stepped Euler integration of lumped-capacitance heat transfer:
 
-This software is provided "as is", without warranty of any kind. It is an educational prototype and must never be deployed to manage real-world physical systems, batteries, or vehicles.
+$$\frac{dT_i}{dt} = \frac{I^2 R_i + Q_{\text{exo}, i} + \sum_{j \in \mathcal{N}_i} k_{\text{cond}} (T_j - T_i) - h_{\text{cool}} (T_i - T_{\text{cool}}) - h_{\text{amb}} A (T_i - T_{\text{amb}})}{C_{\text{thermal}}}$$
+
+- **$I^2 R$ Joule Heating**: Quadratic heat generation proportional to instantaneous load current.
+- **Inter-cell Conduction**: 4-connected grid conduction modeling thermal migration to adjacent planar cells.
+- **Coolant Convection**: Active liquid heat extraction modulated by coolant mass flow rate $\dot{m}$.
+- **Exothermic Runaway Trigger**: Activated when cell temperatures surpass $48^\circ\text{C}$, accelerating cell self-heating exponentially.

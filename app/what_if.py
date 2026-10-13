@@ -1,157 +1,405 @@
 """
-What-If Simulator Page
-========================
-Compare baseline vs hypothetical operating conditions for failure probability.
+What-If Simulator — Live Parameter Explanation & Scenario Comparison
+====================================================================
+Real-time, parameter-specific thermal and battery health explanations
+as sliders adjust, paired with on-demand multi-model scenario comparisons.
+Clean, modern, spacious, engineering-focused design.
 """
 
 import streamlit as st
 import numpy as np
-import pandas as pd
 import plotly.graph_objects as go
-from src.prediction_engine import predict_failure_probability, get_default_features
-from src.hotspot_risk import estimate_hotspot_risk, generate_cell_temperature_grid
-from app.ui_components import page_header, section_header, CHART_LAYOUT, metric_card, status_badge
+
+from src.prediction_engine import get_default_features
+from src.hotspot_risk import generate_cell_temperature_grid
+from src.what_if_explainer import (
+    get_live_parameter_explanations,
+    compute_simulation_comparison,
+)
+from app.ui_components import page_header, CHART_LAYOUT
+from app.styles import clean_html
+
 
 def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, dataset):
-    page_header("What-If Simulator", "Explore Hypothetical Operating Scenarios")
-
-    # ── Controls ───────────────────────────────────
-    with st.container(border=True):
-        section_header("Adjust Operating Parameters")
-    
-        col1, col2, col3 = st.columns(3)
-    
-        with col1:
-            wi_avg_temp = st.slider("Avg Cell Temperature (°C)", 15.0, 60.0, 30.0, 0.5, key="wi_avg")
-            wi_max_temp = st.slider("Max Cell Temperature (°C)", 15.0, 85.0, max(32.0, wi_avg_temp + 2), 0.5, key="wi_max")
-    
-        with col2:
-            wi_power = st.slider("Charge Power (kW)", 0.0, 200.0, 50.0, 5.0, key="wi_power")
-            wi_resistance = st.slider("Internal Resistance (Ω)", 0.5, 10.0, 1.5, 0.1, key="wi_res")
-    
-        with col3:
-            wi_soc = st.slider("State of Charge (%)", 0.0, 100.0, 80.0, 5.0, key="wi_soc")
-            wi_cooling = st.slider("Cooling Health (%)", 0.0, 100.0, 100.0, 5.0, key="wi_cool")
-    
-        run_whatif = st.button("Run What-If Simulation", type="primary", use_container_width=True, key="run_whatif")
-
-    # ── Baseline ───────────────────────────────────
-    baseline = get_default_features()
-    baseline_prob = predict_failure_probability(mlp_model, baseline)
-    
-    if baseline_prob > 0.8: base_risk = "CRITICAL"
-    elif baseline_prob > 0.4: base_risk = "HIGH"
-    elif baseline_prob > 0.15: base_risk = "CAUTION"
-    else: base_risk = "NORMAL"
-    
-    baseline_hotspot = estimate_hotspot_risk(
-        baseline["cell_temperature_avg"], baseline["cell_temperature_max"]
+    page_header(
+        title="What-If Simulator",
+        subtitle="Simulate and compare hypothetical thermal and operating scenarios against nominal baseline",
+        badge_label="SCENARIO LAB",
     )
 
-    if run_whatif or st.session_state.get("wi_ran", False):
-        st.session_state.wi_ran = True
+    baseline = get_default_features()
 
-        # What-if scenario
-        whatif = get_default_features()
-        whatif["cell_temperature_avg"] = wi_avg_temp
-        whatif["cell_temperature_max"] = max(wi_avg_temp, wi_max_temp)
-        whatif["average_charge_power_kw"] = wi_power
-        whatif["internal_resistance"] = wi_resistance
-        whatif["state_of_charge"] = wi_soc
-        whatif["cooling_system_health"] = wi_cooling
+    # ── Initialize session state slider keys if not present ────
+    if "wi_slider_avg" not in st.session_state:
+        st.session_state.wi_slider_avg = float(baseline["cell_temperature_avg"])
+    if "wi_slider_max" not in st.session_state:
+        st.session_state.wi_slider_max = float(baseline["cell_temperature_max"])
+    if "wi_slider_power" not in st.session_state:
+        st.session_state.wi_slider_power = float(baseline["average_charge_power_kw"])
+    if "wi_slider_res" not in st.session_state:
+        st.session_state.wi_slider_res = float(baseline["internal_resistance"])
+    if "wi_slider_cool" not in st.session_state:
+        st.session_state.wi_slider_cool = float(baseline["cooling_system_health"])
+    if "wi_slider_soc" not in st.session_state:
+        st.session_state.wi_slider_soc = float(baseline["state_of_charge"])
+    if "wi_has_run" not in st.session_state:
+        st.session_state.wi_has_run = False
 
-        whatif_prob = predict_failure_probability(mlp_model, whatif)
-        delta_prob = whatif_prob - baseline_prob
-        
-        if whatif_prob > 0.8: whatif_risk = "CRITICAL"
-        elif whatif_prob > 0.4: whatif_risk = "HIGH"
-        elif whatif_prob > 0.15: whatif_risk = "CAUTION"
-        else: whatif_risk = "NORMAL"
+    # ── Operating Condition Sliders Card ───────────────────────
+    st.markdown(
+        clean_html(
+            """
+            <div class="white-card" style="margin-bottom: 12px;">
+                <div class="white-card-title">Operating conditions &amp; thermal controls</div>
+                <div class="white-card-subtitle">Adjust simulated electrical and thermal operating variables</div>
+            </div>
+            """
+        ),
+        unsafe_allow_html=True,
+    )
 
-        whatif_hotspot = estimate_hotspot_risk(
-            whatif["cell_temperature_avg"], whatif["cell_temperature_max"]
+    s_col1, s_col2 = st.columns(2)
+    with s_col1:
+        wi_avg_temp = st.slider(
+            "Average Cell Temperature (°C)",
+            min_value=15.0,
+            max_value=60.0,
+            value=float(st.session_state.get("wi_slider_avg", baseline["cell_temperature_avg"])),
+            step=0.5,
+            key="wi_slider_avg",
+            help="Baseline nominal value: 21.0 °C",
+        )
+        wi_max_temp = st.slider(
+            "Maximum Hotspot Temperature (°C)",
+            min_value=15.0,
+            max_value=85.0,
+            value=float(st.session_state.get("wi_slider_max", baseline["cell_temperature_max"])),
+            step=0.5,
+            key="wi_slider_max",
+            help="Must be ≥ Average Cell Temperature. Baseline nominal value: 28.5 °C",
+        )
+        wi_power = st.slider(
+            "Average Charge Power (kW)",
+            min_value=0.0,
+            max_value=200.0,
+            value=float(st.session_state.get("wi_slider_power", baseline["average_charge_power_kw"])),
+            step=5.0,
+            key="wi_slider_power",
+            help="Baseline nominal value: 40.0 kW",
         )
 
-        # ── Parameter Comparison ───────────────────────
-        with st.container(border=True):
-            section_header("Parameter Comparison")
-            
-            comp_data = [
-                {"Parameter": "Avg Temp", "Baseline": f'{baseline["cell_temperature_avg"]:.1f} °C', "Scenario": f"{wi_avg_temp:.1f} °C", "Change": f"{wi_avg_temp - baseline['cell_temperature_avg']:+.1f} °C"},
-                {"Parameter": "Max Temp", "Baseline": f'{baseline["cell_temperature_max"]:.1f} °C', "Scenario": f"{wi_max_temp:.1f} °C", "Change": f"{wi_max_temp - baseline['cell_temperature_max']:+.1f} °C"},
-                {"Parameter": "Charge Power", "Baseline": f'{baseline["average_charge_power_kw"]:.1f} kW', "Scenario": f"{wi_power:.1f} kW", "Change": f"{wi_power - baseline['average_charge_power_kw']:+.1f} kW"},
-                {"Parameter": "Resistance", "Baseline": f'{baseline["internal_resistance"]:.2f} Ω', "Scenario": f"{wi_resistance:.2f} Ω", "Change": f"{wi_resistance - baseline['internal_resistance']:+.2f} Ω"},
-            ]
-            
-            df_comp = pd.DataFrame(comp_data)
-            st.dataframe(df_comp, use_container_width=True, hide_index=True)
+    with s_col2:
+        wi_resistance = st.slider(
+            "Internal Resistance (mΩ)",
+            min_value=0.2,
+            max_value=6.0,
+            value=float(st.session_state.get("wi_slider_res", baseline["internal_resistance"])),
+            step=0.05,
+            key="wi_slider_res",
+            help="Baseline nominal value: 0.53 mΩ",
+        )
+        wi_cooling = st.slider(
+            "Cooling System Health (%)",
+            min_value=0.0,
+            max_value=100.0,
+            value=float(st.session_state.get("wi_slider_cool", baseline["cooling_system_health"])),
+            step=1.0,
+            key="wi_slider_cool",
+            help="Baseline nominal value: 74.0 %",
+        )
+        wi_soc = st.slider(
+            "State of Charge (%)",
+            min_value=5.0,
+            max_value=100.0,
+            value=float(st.session_state.get("wi_slider_soc", baseline["state_of_charge"])),
+            step=1.0,
+            key="wi_slider_soc",
+            help="Baseline nominal value: 55.0 %",
+        )
 
-        # ── Comparison ─────────────────────────────
-        col_b, col_arrow, col_w = st.columns([2, 1, 2])
+    # Hotspot must physically be at least average temperature
+    eff_max_temp = max(wi_avg_temp, wi_max_temp)
 
-        with col_b:
-            with st.container(border=True):
-                section_header("Baseline Prediction")
-                metric_card("Failure Prob", f"{baseline_prob*100:.1f}", " %")
-                st.markdown("<br/>", unsafe_allow_html=True)
-                status_badge("Failure Risk", base_risk)
-                status_badge("Hotspot Variance", "NORMAL" if baseline_hotspot["hotspot_risk_percent"] < 30 else "CAUTION")
+    current_vals = {
+        "cell_temperature_avg": wi_avg_temp,
+        "cell_temperature_max": eff_max_temp,
+        "average_charge_power_kw": wi_power,
+        "internal_resistance": wi_resistance,
+        "cooling_system_health": wi_cooling,
+        "state_of_charge": wi_soc,
+    }
 
-        with col_arrow:
-            delta_color = "#DC2626" if delta_prob > 0 else "#16A34A"
-            delta_icon = "↑" if delta_prob > 0 else "↓"
-            st.markdown(f'''
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; margin-top: 50px;">
-                <div style="font-size: 24px;">{delta_icon}</div>
-                <div style="font-family: var(--mono); font-weight: 700; font-size: 24px; color: {delta_color};">{delta_prob*100:+.1f} %</div>
-                <div style="font-size: 11px; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.05em;">IMPACT</div>
-            </div>
-            ''', unsafe_allow_html=True)
+    # ── Live Parameter Explanation Panel ───────────────────────
+    # Evaluated immediately on every rerun / slider adjustment
+    live_explanations = get_live_parameter_explanations(baseline, current_vals)
 
-        with col_w:
-            with st.container(border=True):
-                section_header("What-If Prediction")
-                metric_card("Failure Prob", f"{whatif_prob*100:.1f}", " %")
-                st.markdown("<br/>", unsafe_allow_html=True)
-                status_badge("Failure Risk", whatif_risk)
-                status_badge("Hotspot Variance", "NORMAL" if whatif_hotspot["hotspot_risk_percent"] < 30 else "CAUTION")
-
-        # ── Battery Visualization Comparison ───────
-        st.markdown('<div style="margin-top:20px; margin-bottom:20px; border-bottom:1px solid var(--border);"></div>', unsafe_allow_html=True)
-        col_grid_b, col_grid_w = st.columns(2)
-
-        with col_grid_b:
-            section_header("Baseline Grid")
-            grid_b = generate_cell_temperature_grid(baseline["cell_temperature_avg"], baseline["cell_temperature_max"], seed=42)
-            _render_heatmap(grid_b, key="heatmap_baseline")
-
-        with col_grid_w:
-            section_header("What-If Grid")
-            grid_w = generate_cell_temperature_grid(whatif["cell_temperature_avg"], whatif["cell_temperature_max"], seed=42)
-            _render_heatmap(grid_w, key="heatmap_whatif")
-
+    if not live_explanations:
+        st.markdown(
+            clean_html(
+                """
+                <div class="white-card" style="margin-top: 4px; margin-bottom: 12px;">
+                    <div class="white-card-header">
+                        <div>
+                            <div class="white-card-title">Live Parameter Explanation</div>
+                            <div class="white-card-subtitle">Real-time thermal mechanism breakdown as sliders adjust</div>
+                        </div>
+                        <span style="background: #F0FDF4; color: #16866A; font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 4px;">
+                            NOMINAL BASELINE
+                        </span>
+                    </div>
+                    <div style="font-size: 13px; color: #475569; margin-top: 8px; line-height: 1.5;">
+                        All operating parameters match the calibrated baseline. Adjust any slider above to immediately see a concise explanation of how that parameter affects battery physics and thermal risk.
+                    </div>
+                </div>
+                """
+            ),
+            unsafe_allow_html=True,
+        )
     else:
-        st.info("Adjust the parameters above and click **Run What-If Simulation** to compare scenarios.")
+        n_changed = len(live_explanations)
+        badge_txt = f"{n_changed} PARAMETER{'S' if n_changed > 1 else ''} CHANGED"
+
+        items_html = []
+        for item in live_explanations:
+            is_inc = item["direction"] == "INCREASE"
+            is_cooling = item["param_key"] == "cooling_system_health"
+            is_riskier = (is_inc and not is_cooling) or (not is_inc and is_cooling)
+            badge_color = "#D94841" if is_riskier else "#16866A"
+            badge_bg = "#FEF2F2" if is_riskier else "#F0FDF4"
+
+            items_html.append(
+                f"""
+                <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 12px 14px; margin-top: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #EEF2F6; padding-bottom: 6px;">
+                        <div style="font-size: 13px; font-weight: 700; color: #172033;">
+                            <span style="color: #64748B; font-weight: 600;">Parameter changed:</span> {item['param_name']}
+                        </div>
+                        <span style="font-size: 12px; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: {badge_color}; background: {badge_bg}; padding: 3px 8px; border-radius: 4px;">
+                            {item['change_summary']}
+                        </span>
+                    </div>
+                    <div style="font-size: 12px; color: #334155; line-height: 1.55; display: flex; flex-direction: column; gap: 5px;">
+                        <div><b style="color: #172033;">What this means:</b> {item['what_this_means']}</div>
+                        <div><b style="color: #172033;">Why it matters:</b> {item['why_it_matters']}</div>
+                        <div><b style="color: #172033;">Expected effect:</b> {item['expected_effect']}</div>
+                        <div><b style="color: #172033;">Suggested adjustment:</b> {item['suggested_adjustment']}</div>
+                    </div>
+                </div>
+                """
+            )
+
+        all_items_str = "\n".join(items_html)
+
+        st.markdown(
+            clean_html(
+                f"""
+                <div class="white-card" style="margin-top: 4px; margin-bottom: 12px;">
+                    <div class="white-card-header">
+                        <div>
+                            <div class="white-card-title">Live Parameter Explanation</div>
+                            <div class="white-card-subtitle">Immediate explanation for {n_changed} changed parameter(s)</div>
+                        </div>
+                        <span style="background: #EFF6FF; color: #1D4ED8; font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 4px;">
+                            {badge_txt}
+                        </span>
+                    </div>
+                    {all_items_str}
+                </div>
+                """
+            ),
+            unsafe_allow_html=True,
+        )
+
+    # ── Action Buttons ─────────────────────────────────────────
+    b_col1, b_col2 = st.columns([1, 1])
+    with b_col1:
+        if st.button("Run Simulation & Compare", type="primary", use_container_width=True, key="btn_run_wi"):
+            st.session_state.wi_has_run = True
+
+    with b_col2:
+        if st.button("Reset to Baseline", use_container_width=True, key="btn_reset_wi"):
+            st.session_state.wi_slider_avg = float(baseline["cell_temperature_avg"])
+            st.session_state.wi_slider_max = float(baseline["cell_temperature_max"])
+            st.session_state.wi_slider_power = float(baseline["average_charge_power_kw"])
+            st.session_state.wi_slider_res = float(baseline["internal_resistance"])
+            st.session_state.wi_slider_cool = float(baseline["cooling_system_health"])
+            st.session_state.wi_slider_soc = float(baseline["state_of_charge"])
+            st.session_state.wi_has_run = False
+            st.rerun()
+
+    # ── Simulation Comparison Results ──────────────────────────
+    # Displayed after the user clicks "Run Simulation & Compare"
+    if st.session_state.get("wi_has_run", False):
+        scenario = baseline.copy()
+        scenario.update(current_vals)
+
+        comp = compute_simulation_comparison(
+            baseline=baseline,
+            scenario=scenario,
+            mlp_model=mlp_model,
+            xgb_model=xgb_model,
+            ae_artifacts=ae_model_artifacts,
+        )
+
+        mlp_delta = comp["mlp_delta_pp"]
+        delta_color = "#D94841" if mlp_delta > 0.5 else "#16866A" if mlp_delta < -0.5 else "#667085"
+        delta_sign = "+" if mlp_delta > 0 else ""
+
+        # Optional XGBoost comparison line if model is loaded
+        xgb_sub = ""
+        if comp["base_xgb_pct"] is not None and comp["scen_xgb_pct"] is not None:
+            xgb_sign = "+" if comp["xgb_delta_pp"] > 0 else ""
+            xgb_sub = (
+                f'<div style="font-size: 11px; color: #64748B; margin-top: 8px; border-top: 1px solid #F1F5F9; padding-top: 6px;">'
+                f'<b>XGBoost Predictor:</b> Baseline {comp["base_xgb_pct"]:.2f}% → Scenario {comp["scen_xgb_pct"]:.2f}% '
+                f'({xgb_sign}{comp["xgb_delta_pp"]:.2f} pp)'
+                f'</div>'
+            )
+
+        st.markdown(
+            clean_html(
+                f"""
+                <div class="white-card" style="margin-top: 12px; margin-bottom: 12px;">
+                    <div class="white-card-header">
+                        <div>
+                            <div class="white-card-title">Simulation Comparison Results</div>
+                            <div class="white-card-subtitle">Calculated model predictions comparing baseline against hypothetical scenario</div>
+                        </div>
+                        <span style="background: #EFF6FF; color: #1D4ED8; font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 4px;">
+                            MODEL ESTIMATE
+                        </span>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px;">
+                        <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 6px; padding: 10px 12px;">
+                            <div style="font-size: 10px; font-weight: 700; color: #64748B; text-transform: uppercase;">BASELINE FAILURE PROB (MLP)</div>
+                            <div style="font-size: 22px; font-weight: 800; color: #16866A; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">
+                                {comp['base_mlp_pct']:.2f}%
+                            </div>
+                        </div>
+                        <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 6px; padding: 10px 12px;">
+                            <div style="font-size: 10px; font-weight: 700; color: #64748B; text-transform: uppercase;">SCENARIO FAILURE PROB (MLP)</div>
+                            <div style="font-size: 22px; font-weight: 800; color: {delta_color}; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">
+                                {comp['scen_mlp_pct']:.2f}%
+                            </div>
+                        </div>
+                        <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 6px; padding: 10px 12px;">
+                            <div style="font-size: 10px; font-weight: 700; color: #64748B; text-transform: uppercase;">DIFFERENCE (DELTA)</div>
+                            <div style="font-size: 22px; font-weight: 800; color: {delta_color}; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">
+                                {delta_sign}{comp['mlp_delta_pp']:.2f} pp
+                            </div>
+                        </div>
+                    </div>
+
+                    {xgb_sub}
+
+                    <div style="margin-top: 12px; background: #F8FAFC; border-left: 3px solid #3B82F6; padding: 8px 12px; border-radius: 0 6px 6px 0;">
+                        <div style="font-size: 12px; color: #1E293B; line-height: 1.45;">
+                            <b>Calculated outcome:</b> {comp['result_explanation']}
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 8px; background: #F8FAFC; border-left: 3px solid #10B981; padding: 8px 12px; border-radius: 0 6px 6px 0;">
+                        <div style="font-size: 12px; color: #1E293B; line-height: 1.45;">
+                            <b>Recommended next adjustment:</b> {comp['recommended_action']}
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 10px; font-size: 11px; color: #64748B; font-style: italic;">
+                        {comp['disclaimer']}
+                    </div>
+                </div>
+                """
+            ),
+            unsafe_allow_html=True,
+        )
+
+    # ── Thermal Grid Comparison (Side by Side) ─────────────────
+    st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
+    g_col1, g_col2 = st.columns(2)
+
+    with g_col1:
+        st.markdown(
+            clean_html(
+                f"""
+                <div class="white-card" style="margin-bottom: 0;">
+                    <div class="white-card-title">Baseline thermal grid (nominal)</div>
+                    <div class="white-card-subtitle">Illustrative 3×4 module map · Mean: {baseline['cell_temperature_avg']:.1f}°C · Peak: {baseline['cell_temperature_max']:.1f}°C</div>
+                </div>
+                """
+            ),
+            unsafe_allow_html=True,
+        )
+        grid_base = generate_cell_temperature_grid(
+            baseline["cell_temperature_avg"],
+            baseline["cell_temperature_max"],
+            rows=3,
+            cols=4,
+            seed=42,
+        )
+        _render_heatmap(grid_base, key="heatmap_wi_baseline")
+
+    with g_col2:
+        st.markdown(
+            clean_html(
+                f"""
+                <div class="white-card" style="margin-bottom: 0;">
+                    <div class="white-card-title">What-If thermal grid (hypothetical)</div>
+                    <div class="white-card-subtitle">Illustrative 3×4 module map · Mean: {current_vals['cell_temperature_avg']:.1f}°C · Peak: {current_vals['cell_temperature_max']:.1f}°C</div>
+                </div>
+                """
+            ),
+            unsafe_allow_html=True,
+        )
+        grid_scen = generate_cell_temperature_grid(
+            current_vals["cell_temperature_avg"],
+            current_vals["cell_temperature_max"],
+            rows=3,
+            cols=4,
+            seed=42,
+        )
+        _render_heatmap(grid_scen, key="heatmap_wi_scenario")
+
+    # ── Illustrative Disclaimer ───────────────────────────────────
+    st.markdown(
+        clean_html(
+            """
+            <div style="font-size: 11px; color: #64748B; font-style: italic; margin-top: 6px; padding: 4px 6px;">
+                <b>Visualization Note:</b> These 3×4 heatmaps are illustrative synthetic visualizations generated from slider inputs (center hotspot at peak temperature, balanced to pack average). They are illustrative representations and not the full 24-cell lumped-capacitance ODE simulation, which runs on Mission Control.
+            </div>
+            """
+        ),
+        unsafe_allow_html=True,
+    )
+
 
 def _render_heatmap(grid, key):
-    # Heatmap color scale for light theme
-    fig = go.Figure(data=go.Heatmap(
-        z=grid[::-1],
-        text=[[f"{v:.1f}°" for v in row] for row in grid[::-1]],
-        texttemplate="%{text}",
-        textfont=dict(size=14, family="JetBrains Mono", color="#111827"),
-        colorscale=[[0, "#E0F2FE"], [0.3, "#BAE6FD"], [0.5, "#BBF7D0"],
-                    [0.7, "#FEF08A"], [0.85, "#FDBA74"], [1, "#FCA5A5"]],
-        zmin=15, zmax=85,
-        showscale=False,
-        xgap=3, ygap=3,
-    ))
-    layout_opts = CHART_LAYOUT.copy()
-    layout_opts.update(
-        height=220,
+    fig = go.Figure(
+        data=go.Heatmap(
+            z=grid[::-1],
+            text=[[f"{v:.1f}°C" for v in row] for row in grid[::-1]],
+            texttemplate="%{text}",
+            textfont=dict(size=12, family="JetBrains Mono", color="#FFFFFF"),
+            colorscale=[
+                [0.0, "#065F46"],
+                [0.3, "#0D9488"],
+                [0.55, "#326CE5"],
+                [0.75, "#C7771B"],
+                [1.0, "#D94841"],
+            ],
+            zmin=15,
+            zmax=80,
+            showscale=False,
+            xgap=3,
+            ygap=3,
+        )
+    )
+    layout = CHART_LAYOUT.copy()
+    layout.update(
+        height=200,
         xaxis=dict(showticklabels=False, showgrid=False),
         yaxis=dict(showticklabels=False, showgrid=False),
-        margin=dict(l=10, r=10, t=10, b=10)
+        margin=dict(l=10, r=10, t=10, b=10),
     )
-    fig.update_layout(**layout_opts)
+    fig.update_layout(**layout)
     st.plotly_chart(fig, use_container_width=True, key=key)

@@ -1,31 +1,46 @@
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
-*.egg-info/
-dist/
-build/
-.eggs/
-*.egg
+.pytest_cache/
+*.pytest_cache/
 
-# Virtual environments
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment Variables & Secrets
 .env
 .env.*
-!.env.example
-.venv/
-env/
-venv/
+*.env
 
-# Streamlit
-.streamlit/
+# Large Datasets (preserve .gitkeep)
+data/raw/*.csv
+data/raw/*.zip
+data/raw/*.parquet
+data/processed/*.csv
+data/processed/*.parquet
+!data/raw/.gitkeep
+!data/processed/.gitkeep
 
-# IDE / OS
-.idea/
+# Model Artifacts (preserve .gitkeep)
+models/*.joblib
+models/*.pt
+models/*.pth
+models/*.pkl
+models/*.onnx
+!models/.gitkeep
+
+# IDEs & OS files
 .vscode/
+.idea/
 *.swp
 .DS_Store
 Thumbs.db
 
-# Logs / Temp
+# Logs & temp
 *.log
-screenshots/
 streamlit.log
+screenshots/

@@ -55,8 +55,7 @@ def get_simulation_state(mode: str, step: int, seed: int = 42) -> dict:
     features["cell_temperature_max"] = max(features["cell_temperature_avg"], min(85.0, features["cell_temperature_max"]))
     features["internal_resistance"] = max(0.5, min(10.0, features["internal_resistance"]))
     features["cooling_system_health"] = max(0.0, min(100.0, features["cooling_system_health"]))
-    features["average_charge_power_kw"] = max(0.0, min(200.0, features["average_charge_power_kw"]))
-    features["state_of_charge"] = max(0.0, min(100.0, 80.0 - step * 0.2))
+    features["state_of_charge"] = max(0.0, min(100.0, features["state_of_charge"]))
     features["fast_charge_ratio"] = max(0.0, min(1.0, features["fast_charge_ratio"]))
 
     return features
