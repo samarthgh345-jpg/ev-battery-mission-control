@@ -237,17 +237,7 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-    st.markdown("<div style='border-top: 1px solid #232838; margin: 18px 0 10px 0;'></div>", unsafe_allow_html=True)
-    st.markdown(
-        clean_html(
-            """
-            <div style="font-size: 10px; color: #64748B; line-height: 1.4;">
-                <b style="color: #94A3B8;">PROTOTYPE NOTICE:</b> Telemetry and thermal simulation are simulated and not validated for real-world safety-critical deployment.
-            </div>
-            """
-        ),
-        unsafe_allow_html=True,
-    )
+    
 
 # Fallback error notice if models are missing
 if not models_loaded:
