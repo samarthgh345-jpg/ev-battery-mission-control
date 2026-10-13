@@ -1,325 +1,294 @@
-# EV Battery Mission Control — Manual Run Guide
+# EV Battery Mission Control — Manual Run & Demonstration Guide
 
-This guide provides step-by-step instructions for manually demonstrating the EV Battery Mission Control project. It is based entirely on the current, implemented functionality.
-
----
-
-## 1. PROJECT STARTUP
-
-Follow these exact steps to start the application:
-
-1. Open your terminal.
-2. Navigate to the project folder:
-   `cd C:\Users\samar\.gemini\antigravity-ide\scratch\ev-battery-mission-control`
-3. Activate your virtual environment (if you created one for this project).
-4. Install dependencies (only if you haven't already):
-   `pip install -r requirements.txt`
-5. Start the Streamlit application by running the exact command:
-   `streamlit run app/main.py`
-6. The application will start and provide a local URL. You should open your browser to the expected localhost URL:
-   `http://localhost:8501`
-7. **What you should see:** A professional engineering dashboard titled "EV Battery Mission Control" with a clean, light-themed industrial interface (avoiding neon AI glows).
-8. **Terminal errors to watch for:** If you see `Models not found. Run: python scripts/train_model.py` in the UI or terminal, it means the pre-trained ML models are missing. You must run `python src/train_model.py` first.
+This guide provides step-by-step instructions for running, testing, and demonstrating the **EV Battery Mission Control** application. It documents the three active production pages and reflects the current project architecture, controls, and deterministic decision logic.
 
 ---
 
-## 2. PROJECT NAVIGATION
+## 1. PROJECT STARTUP & ENVIRONMENT SETUP
 
-Use the dropdown menu in the left sidebar to navigate between the following pages:
+### Prerequisites
+- Python 3.10+ (tested on Python 3.11)
+- Virtual environment (`venv`)
 
-- **Mission Control**: High-level overview of battery telemetry, predicted temperature, thermal risk, and LangGraph recommendations. (No manual input required).
-- **Digital Twin**: 2D spatial heatmap of the battery pack. (Requires input for what-if scenarios).
-- **Thermal Analysis**: Live simulation tracking time-series thermal behavior. (Requires clicking 'Start Live Simulation').
-- **What-If Simulator**: Scenario testing to compare baseline vs. hypothetical parameters. (Requires adjusting sliders and clicking 'Run What-If Simulation').
-- **Dataset Explorer**: Raw synthetic telemetry dataset viewer. (No manual input required).
-- **Model Performance**: Evaluation metrics and feature importance charts for the XGBoost model. (No manual input required).
-- **GenAI Generator**: cGAN interface for generating synthetic telemetry based on risk conditions. (Requires selecting a condition and number of samples).
-- **VAE Generator**: Latent space compression demonstration. (Requires adjusting signal parameters and clicking 'Encode & Reconstruct').
-- **XAI**: Explainable AI interface featuring SHAP and LIME. (Requires clicking 'Generate' buttons).
-- **Responsible AI**: Static documentation of system limitations and safety boundaries. (No manual input required).
-- **RAG Assistant**: Conversational interface for querying the knowledge base. (Requires typing a query).
-- **Prompt Lab**: Engineering console to execute LLM prompts against the RAG pipeline. (Requires typing a prompt and clicking 'Execute Prompt Pipeline').
-- **AI Agent Decision**: LangGraph deterministic safety agent workflow demonstration. (Requires clicking 'Simulate thermal stress').
+### Step-by-Step Launch Instructions
 
----
+1. **Clone or Navigate to the Project Root**:
+   ```bash
+   cd ev-battery-mission-control
+   ```
 
-## 3. MISSION CONTROL
+2. **Create and Activate Virtual Environment**:
+   - **Windows (PowerShell)**:
+     ```powershell
+     python -m venv .venv
+     .\.venv\Scripts\Activate.ps1
+     ```
+     *(If script execution is blocked on Windows, run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` first).*
+   - **macOS / Linux**:
+     ```bash
+     python3 -m venv .venv
+     source .venv/bin/activate
+     ```
 
-**How to demonstrate:**
-No manual input is required.
+3. **Install Dependencies**:
+   ```bash
+   pip install --upgrade pip
+   pip install -r requirements.txt
+   ```
 
-**What to inspect:**
-- **Battery Temperature**: The actual telemetry temperature.
-- **Predicted Temperature**: The XGBoost prediction for maximum battery temperature.
-- **Thermal Risk**: The rule-based classification (NORMAL, CAUTION, HIGH, CRITICAL).
-- **Hotspot Risk**: The localized hotspot variance metric (NORMAL or CAUTION).
-- **XGBoost Status**: Prediction active status.
-- **MLP Status**: Secondary model tracking status.
-- **Isolation Forest Status**: Anomaly detection status (NORMAL or ANOMALY).
-- **Risk Evaluator**: Currently assessed risk category.
-- **LangGraph Recommendation**: The autonomous agent's prescribed cooling action.
-- **Thermal Forecast**: The 15-step projection chart showing historical and predicted trajectory.
+4. **Run the Automated Test Suite**:
+   ```bash
+   python -m pytest
+   ```
+   *Expected result: 67 passing tests, confirming ODE simulation stability, decision engine rules, and model inference pipelines.*
 
-**Successful run:**
-A successful run shows all metrics loaded correctly, the forecast chart rendered, and a logically consistent recommendation (e.g., if risk is NORMAL, recommendation should be to maintain cooling). 
+5. **Start the Application**:
+   - **Option A (System Initialization Launcher)**:
+     ```bash
+     python run.py
+     ```
+     *Validates environment prerequisites and dataset presence before launching Streamlit.*
+   - **Option B (Direct Streamlit Launch)**:
+     ```bash
+     streamlit run app/main.py
+     ```
 
-**Screenshot:**
-Capture the entire Mission Control overview, ensuring the anomaly badges and forecast chart are visible.
-
----
-
-## 4. DIGITAL TWIN
-
-**A. Normal Test**
-- **Input values:** Battery Current: `5.0 A`, Ambient Temperature: `25.0 °C`.
-- **Where to enter:** Sliders under "Operating Parameters".
-- **Action:** Click "Update Digital Twin".
-- **Observe:** The 2D thermal grid updates to show a stable, low-temperature profile. Record the cell temperatures, Pack Max Temp, Hotspot Risk, Thermal State, and Cell Variance.
-
-**B. Stress Test**
-- **Input values:** Battery Current: `15.0 A`, Ambient Temperature: `45.0 °C`, Discharge Rate: `5.0 C`, Coolant Flow: `0.005 kg/s`.
-- **Why these represent stress:** High current and discharge rate maximize internal heat generation, high ambient limits external dissipation, and low coolant flow minimizes active cooling.
-- **Action:** Click "Update Digital Twin".
-- **Observe:** Record the new cell temperatures. Verify that the Pack Max Temperature EXACTLY matches the text inside the hottest cell in the 2D grid. Record the Hotspot Risk, Thermal State (which should now be elevated), and Cell Variance.
+6. **Access the Dashboard**:
+   Open your browser to:
+   ```text
+   http://localhost:8501
+   ```
 
 ---
 
-## 5. THERMAL ANALYSIS
+## 2. NAVIGATION & SYSTEM STATUS
 
-**Steps:**
-1. Under "Simulation Profile", select **NORMAL**.
-2. Click **Start Live Simulation**.
-3. Observe the charts updating dynamically.
-4. **Wait for completion:** The simulation will run for exactly 50 steps.
-5. **Observe successful completion:** The running indicator will change to "✅ COMPLETE", the loop will stop, and the charts will remain visible on screen.
+Use the **Navigation** selector in the left sidebar to navigate between the three active pages:
 
-**What to observe during the run:**
-- The telemetry charts (Current, Voltage, Battery Temperature, Ambient Temperature, Coolant Flow, Inlet Temperature).
-- The Temperature Forecast graph advancing step-by-step.
-- The Risk Status badges.
+| Page | Icon | Purpose |
+| :--- | :---: | :--- |
+| **Mission Control** | 🎛️ | Primary 24-cell thermal pack console, scenario switching, coolant flow controls, and deterministic AI decision support. |
+| **Thermal Analysis** | 🌡️ | Continuous lumped-capacitance ODE simulation streaming, forward stepping, live time-series plots, and multi-horizon failure forecasting. |
+| **What-If Simulator** | 🧪 | Interactive 6-parameter perturbation sandbox with real-time physics explanations, delta calculations, and side-by-side thermal grids. |
 
-*(If you wish to test stress, select HIGH LOAD or THERMAL STRESS from the profile dropdown, click Stop (if running), and click Start Live Simulation again).*
-
----
-
-## 6. WHAT-IF SIMULATOR
-
-**TEST A — NORMAL**
-- **Input values:** Use the default slider values (e.g., Current: 5.0A, Ambient: 28.0°C, Coolant: 0.020 kg/s, Inlet: 23.0°C, SOC: 60.0%, Discharge: 1.5C).
-- **Action:** Click "Run What-If Simulation".
-- **Observe:** Note the Baseline Prediction and the What-If Prediction. They should be identical or very close. Record the temperature difference and risk state.
-
-**TEST B — STRESS**
-- **Input values:** Battery Current: `15.0 A`, Ambient Temperature: `45.0 °C`, Discharge Rate: `5.0 C`, Coolant Flow Rate: `0.005 kg/s`.
-- **Action:** Click "Run What-If Simulation".
-- **Observe:** Record the actual output values. The What-If Prediction should be significantly higher than the Baseline, and the Impact Arrow should be red, indicating a large positive temperature difference. Record the new, elevated Thermal Risk state.
+### System Status Badges (Sidebar)
+The sidebar displays real-time health indicators for core ML components:
+- **XGBoost**: `● ONLINE` (Hold-out test accuracy: 91.68%, ROC-AUC: 0.9789)
+- **PyTorch MLP**: `● ONLINE` (Deep neural network failure classifier)
+- **Autoencoder**: `● ONLINE` (Unsupervised multivariate anomaly detection, threshold: 0.1929)
+- **Dataset**: `ONLINE (200,000 ROWS)` (Telemetry connectivity status)
 
 ---
 
-## 7. DATASET EXPLORER
+## 3. PAGE 1: MISSION CONTROL
 
-**How to demonstrate:**
-Navigate to the "Dataset Explorer" page.
+### Overview
+Mission Control is the primary operator console. It features a real-time 24-cell (4×6 planar module) thermal grid with safety bands, localized hotspot tracking (Cell C7, index 6), physical cooling controls, and deterministic rule-based decision support.
 
-**What to inspect:**
-- Check the top metric cards to verify the total number of rows and features.
-- Inspect the raw data table to see the 14 `FEATURE_COLUMNS`.
-- Note the target column: `max_battery_temperature_C`.
-- Inspect the interactive correlation heatmap and feature distribution histograms.
+### Key Visual & Telemetry Elements
+- **24-Cell Thermal Grid (4×6 Planar Module)**:
+  - Cell IDs 1 through 24 with individual temperatures.
+  - Cell 7 (C7) is the designated localized hotspot cell with elevated internal resistance (0.038 Ω vs. 0.015 Ω nominal).
+- **Safety Color Bands**:
+  - `Normal`: $< 36.0^\circ\text{C}$ (Green `#16866A`)
+  - `Moderate`: $36.0 - 42.0^\circ\text{C}$ (Blue `#326CE5`)
+  - `Caution`: $42.0 - 48.0^\circ\text{C}$ (Orange `#C7771B`)
+  - `Critical`: $\ge 48.0^\circ\text{C}$ (Red `#D94841` — exothermic self-heating onset)
+- **Top KPI Cards**:
+  - `Pack Average Temp`: Mean temperature across all 24 cells.
+  - `Hotspot Temp`: Maximum cell temperature (Cell C7).
+  - `Pack Load Current`: Operating current in Amperes.
+  - `Failure Probability`: PyTorch MLP and XGBoost failure risk percentage.
+  - `Thermal Risk Score`: Multi-factor composite index (0–100 scale).
+  - `Cooling System Health`: Effective BTMS convective health percentage.
 
----
+### Interactive Controls to Demonstrate
 
-## 8. MODEL PERFORMANCE
+1. **Operating Scenario Switching**:
+   - **Where**: "Scenario Mode" selector in the controls panel.
+   - **Options**: `NORMAL` (10A current), `HIGH_LOAD` (25A current), `THERMAL_STRESS` (45A current with degraded cooling).
+   - **Action**: Select `THERMAL_STRESS`.
+   - **Observe**: Hotspot temperature rises toward the caution/critical envelope, failure probability increases, and risk level updates immediately.
 
-**What to check:**
-- Navigate to the page. It evaluates the XGBoost predictive model.
-- **Metrics to record:** Record the displayed MAE (Mean Absolute Error), RMSE (Root Mean Square Error), and R² metrics from the test set.
-- **Charts:** Inspect the "Actual vs Predicted" scatter plot, the "Residuals" distribution, and the "Feature Importance" bar chart.
-- Note the warning panel explicitly clarifying that metrics reflect the XGBoost model on synthetic data.
+2. **Coolant Flow Rate Slider (0.010 – 0.050 kg/s)**:
+   - **Where**: "Coolant Flow Rate (kg/s)" slider.
+   - **Action**: Move slider from `0.020 kg/s` to `0.040 kg/s`.
+   - **Observe**: Immediate quasi-steady convective recalculation reduces hotspot temperature and pack average without advancing the simulation clock.
 
----
+3. **Apply Suggested Cooling Button**:
+   - **Where**: Primary button next to the coolant slider.
+   - **Action**: Click **Apply Suggested Cooling**.
+   - **Observe**:
+     - System executes the deterministic recommendation (+10%, +18%, or +35% flow boost).
+     - Slider updates to the newly calculated flow rate.
+     - Hotspot temperature and pack average immediately decrease.
+     - A confirmation toast displays: `Cooling flow updated to X.XXX kg/s (Hotspot: -X.X°C)`.
 
-## 9. GENAI GENERATOR
+4. **Deterministic Thermal AI Decision Support Panel**:
+   - Inspect the structured rule-engine output:
+     - **Observation**: Clear physical summary of current pack state.
+     - **Active Triggers**: List of explicit safety boundaries crossed.
+     - **Predicted Outcome**: Physical trajectory if unaddressed.
+     - **Recommended Action**: Prescribed cooling intervention.
+     - **Physical Engineering Rationale**: Thermodynamic basis for the action.
 
-**How to demonstrate:**
-1. Select a Target Risk Level condition (e.g., "CRITICAL").
-2. Set "Number of samples to generate" to a supported value like **10** or **50** (the slider allows 10 to 500).
-3. Click "Generate Synthetic Data".
-4. **Output to inspect:** Verify the table populates with new telemetry data. Check the feature distributions in the second tab to ensure they look like valid sensor distributions (no NaN/Inf).
-5. **Export:** Note the "Download Synthetic Data (CSV)" button that appears, allowing export of the cGAN-generated data.
+5. **Autoencoder Anomaly Detection**:
+   - Displays reconstruction error (MSE) against the calibrated threshold (0.1929).
+   - Status badge shows `NORMAL` or `ANOMALY`.
 
----
-
-## 10. VAE GENERATOR
-
-**How to demonstrate:**
-1. Adjust the input signal parameters (Current, Ambient Temp, Discharge Rate, etc.).
-2. Click "Encode & Reconstruct".
-3. **Output to inspect:** View the 4-dimensional latent space representation (the 4 compressed values). 
-4. **Charts to inspect:** Look at the Reconstruction Error line chart showing the original vs. reconstructed standardized values.
-5. **Metrics to record:** Record the "Raw-scale MSE" and "Raw-scale MAE". Do not make claims of high accuracy; present the raw-scale errors objectively as the capability of the 4D bottleneck.
-
----
-
-## 11. XAI
-
-**A. SHAP Local**
-- **Action:** Select the "Local Explanation (SHAP)" tab. Click "Generate SHAP Explanation".
-- **What appears:** A waterfall plot detailing how individual features pushed the prediction up or down from the base value.
-- **Record:** Note the top contributing features and capture a screenshot of the waterfall plot.
-
-**B. LIME**
-- **Action:** Select the "Local Explanation (LIME)" tab. Click "Generate LIME Explanation".
-- **What appears:** Visual, colored cards showing feature weights (red for positive impact on temperature, green for negative).
-- **Record:** Capture a screenshot showing the clean visualization cards (ensure no raw HTML tags are visible).
-
-**C. Global SHAP**
-- **Action:** Navigate to the "Model Performance" page and click the "SHAP Summary" tab. Click "Compute Global SHAP Summary".
-- **What appears:** A bar chart showing mean absolute SHAP values across a sample of the dataset.
-- **Record:** Note which features have the highest global impact. Capture a screenshot.
+6. **Reset to Baseline**:
+   - **Action**: Click **Reset to Baseline**.
+   - **Observe**: Restores calibrated nominal conditions (30°C ambient, 22°C coolant, 10A current, 0.020 kg/s flow rate).
 
 ---
 
-## 12. RESPONSIBLE AI
+## 4. PAGE 2: THERMAL ANALYSIS
 
-**How to demonstrate:**
-Navigate to the "Responsible AI" page. No interaction is required.
+### Overview
+Thermal Analysis provides dynamic time-series simulation monitoring, ODE forward integration, and multi-horizon failure forecasts (+1m, +3m, +5m).
 
-**What to inspect:**
-Scroll through and present the documented guardrails:
-- The limitation of using synthetic simulation data.
-- The boundary between deterministic safety logic and the LLM (emphasizing that the LLM has zero control over cooling).
-- Limitations of model explainability.
+### Controls & Navigation
+- **Telemetry Simulation Mode**: Select `NORMAL`, `HIGH_LOAD`, or `THERMAL_STRESS`.
+- **Stream Controls**:
+  - `▶ Start Stream`: Launches dynamic 50-step simulation stream.
+  - `⏹ Pause Stream`: Halts stream at current step.
+  - `⏭ Single Step`: Manually advances simulation by one time-step (+2s).
+  - `🔄 Reset Monitor`: Restores monitor to step 0 and clears history.
 
----
+### Live Telemetry & Visualizations to Inspect
 
-## 13. RAG ASSISTANT
+1. **Synchronized Time-Series Charts**:
+   - **Temperature Trend Plot**: Plots Maximum Cell Temp (red curve) and Average Cell Temp (blue curve) over time with horizontal dashed safety thresholds:
+     - Caution Boundary: $42.0^\circ\text{C}$ (Orange)
+     - Critical Boundary: $48.0^\circ\text{C}$ (Red)
+   - **Failure Risk Horizon Plot**: Plots PyTorch MLP failure probability over time with shaded risk fill and threshold lines (Caution: 15%, High: 40%).
 
-**How to demonstrate:**
-Navigate to the "Prompt Lab" page. In the Prompt Engineering Console, execute the following queries:
+2. **Multi-Horizon Failure Forecast Card**:
+   - Displays real-time model projections across future time horizons:
+     - Current State failure probability
+     - `+1 min Horizon`
+     - `+3 min Horizon`
+     - `+5 min Horizon`
 
-**TEST 1 — Relevant technical question**
-- **Type:** `What is battery thermal runaway?`
-- **Action:** Click "Execute Prompt Pipeline".
-- **Inspect:** Verify the LLM generates a relevant answer and lists valid context sources from the BTMS knowledge base.
+3. **Autoencoder & Risk Engine Summary**:
+   - Live MSE reconstruction error vs. threshold.
+   - Composite Thermal Risk level (NORMAL, CAUTION, HIGH, CRITICAL) with 0–100 numerical score.
 
-**TEST 2 — BTMS specific question**
-- **Type:** `How does coolant flow affect battery temperature?`
-- **Action:** Click "Execute Prompt Pipeline".
-- **Inspect:** Verify the technical answer and cited sources.
-
-**TEST 3 — Unrelated question**
-- **Type:** `Who won the FIFA World Cup?`
-- **Action:** Click "Execute Prompt Pipeline".
-- **Inspect:** Verify the RAG distance threshold rejects the query and returns the exact fallback message: `"This question is outside the available EV battery thermal-management knowledge base."`
-
----
-
-## 14. PROMPT LAB
-
-**Example Prompts:**
-- `Explain the relationship between high discharge rate and thermal stress.`
-- `What cooling strategies can mitigate hotspot formation?`
-
-**How to demonstrate:**
-- **Action:** Enter the prompt and click "Execute Prompt Pipeline".
-- **Expected response:** A generated technical explanation based on retrieved markdown files.
-- **Verify:** Point out the "Context Sources" expander to show the exact chunks retrieved. Emphasize that the LLM is acting strictly as an informational assistant and does not execute any deterministic code or control logic for the battery itself.
+### Demonstration Procedure
+1. Select **THERMAL_STRESS** from the dropdown.
+2. Click **Start Stream**.
+3. Watch the progress bar advance toward 50 steps.
+4. Observe the temperature curves and failure probability climb.
+5. Watch the toast notification appear upon completion: `✅ Live simulation reached 50 steps.`
 
 ---
 
-## 15. AI AGENT DECISION
+## 5. PAGE 3: WHAT-IF SIMULATOR
 
-This page demonstrates the core agentic loop.
+### Overview
+The What-If Simulator provides an interactive parameter perturbation sandbox. Operators can adjust six battery operational variables, receive real-time physical explanations of each adjustment, and compare baseline vs. hypothetical outcomes side-by-side.
 
-**TEST A — NORMAL CONDITIONS**
-- **Inputs:** Battery Current: `5.0 A`, Ambient Temp: `25.0 °C`, Coolant Flow: `0.020 kg/s`.
-- **Action:** Click "Simulate thermal stress".
-- **Record:** Note the XGBoost prediction, the NORMAL risk level, and the candidate table. Verify the agent selects "Maintain cooling" because it minimizes energy flow while staying in the NORMAL band.
+### Operating Controls (6 Sliders)
+1. **Average Cell Temperature**: Range 15.0 – 60.0°C (Baseline: 21.0°C, Step: 0.5°C)
+2. **Maximum Hotspot Temperature**: Range 15.0 – 85.0°C (Baseline: 28.5°C, Step: 0.5°C)
+3. **Average Charge Power**: Range 0.0 – 200.0 kW (Baseline: 40.0 kW, Step: 5.0 kW)
+4. **Internal Resistance**: Range 0.2 – 6.0 mΩ (Baseline: 0.53 mΩ, Step: 0.05 mΩ)
+5. **Cooling System Health**: Range 0.0 – 100.0% (Baseline: 74.0%, Step: 1.0%)
+6. **State of Charge**: Range 5.0 – 100.0% (Baseline: 55.0%, Step: 1.0%)
 
-**TEST B — THERMAL STRESS CONDITIONS**
-- **Inputs:** Battery Current: `15.0 A`, Ambient Temp: `45.0 °C`, Coolant Flow: `0.010 kg/s`.
-- **Action:** Click "Simulate thermal stress".
-- **Record:**
-  - XGBoost Prediction
-  - MLP Prediction
-  - Isolation Forest anomaly status
-  - Initial Risk Level (Likely CRITICAL or HIGH)
-  - The evaluated candidates in the table (Candidate Actions, Predicted Temps, Risk Levels, Flows).
-  - The **Selected Action** (e.g., Emergency Cooling).
-  - The **Decision Reason** (e.g., "Increased cooling to X% is required to safely manage thermal stress.").
+### Real-Time Live Parameter Explanation Panel
+- Adjusting any slider immediately updates this panel on the fly.
+- For each changed variable, the system explains:
+  - **What this means**: Physical definition of the change.
+  - **Why it matters**: Thermodynamic risk mechanism.
+  - **Expected effect**: Anticipated impact on temperature and failure likelihood.
+  - **Suggested adjustment**: Operational mitigation advice.
 
----
+### Demonstration Scenarios
 
-## 16. DETERMINISM TEST
+#### Scenario A: Thermal Stress Case
+1. Adjust **Maximum Hotspot Temperature** to `52.0°C`.
+2. Adjust **Average Charge Power** to `120.0 kW`.
+3. Adjust **Cooling System Health** down to `35%`.
+4. Observe the **Live Parameter Explanation** card displaying 3 changed parameters with color-coded risk tags.
+5. Click **Run Simulation & Compare**:
+   - **Baseline Failure Prob (MLP)**: Displays calibrated baseline (~0.26%).
+   - **Scenario Failure Prob (MLP)**: Displays elevated scenario risk.
+   - **Difference (Delta)**: Displays percentage-point increase in red.
+   - **Calculated outcome**: Detailed model explanation of the primary drivers.
+   - **Recommended next adjustment**: Concrete cooling or power-shed action.
+6. Inspect the **Side-by-Side Thermal Grids**:
+   - Baseline Nominal Heatmap (cool, uniform green/blue).
+   - What-If Hypothetical Heatmap (concentrated red/orange hotspot).
 
-**How to verify:**
-The AI Agent utilizes deterministic logic (XGBoost + sorting rules) rather than an LLM to make its final selection, ensuring repeatable safety.
-
-Run **Test B (Thermal Stress)** from Section 15 exactly three times in a row without changing the sliders.
-
-Fill out a comparison table for your records:
-
-| Run | Initial Risk | Selected Action | Decision Reason |
-|-----|--------------|-----------------|-----------------|
-| 1   |              |                 |                 |
-| 2   |              |                 |                 |
-| 3   |              |                 |                 |
-
-**What to compare:** You should observe that the selected action and the decision reason are exactly identical across all three runs, proving that the safety control loop is purely deterministic.
-
----
-
-## 17. COMPLETE DEMONSTRATION FLOW
-
-For a 10–15 minute presentation to a professor, use this order:
-
-1. **Mission Control**: Start here to show the high-level professional overview.
-2. **Thermal Analysis**: Run the 50-step live simulation to demonstrate the dynamic time-series capabilities.
-3. **Digital Twin**: Perform the Stress Test to show spatial heatmap updates and UI consistency.
-4. **AI Agent Decision (Crucial)**: Run the Normal and Stress tests to demonstrate the core observe -> predict -> simulate -> decide agentic loop. Show the determinism test.
-5. **XAI**: Generate the LIME or SHAP local explanations to prove the model's decisions are transparent.
-6. **Prompt Lab**: Run a relevant query and the FIFA query to demonstrate the RAG guardrails.
-7. **Responsible AI**: Briefly flash this page to show awareness of safety and synthetic data limitations.
-
-*(You can skip Dataset Explorer, VAE Generator, GenAI Generator, and Model Performance if time is short, as they are supporting ML tools rather than the core control logic).*
+#### Scenario B: Reset Action
+1. Click **Reset to Baseline**.
+2. All 6 sliders instantly return to calibrated default values.
+3. The Live Explanation panel returns to `NOMINAL BASELINE`.
 
 ---
 
-## 18. SCREENSHOT CHECKLIST
+## 6. DETERMINISTIC REPEATABILITY VERIFICATION
 
-Check these off as you document your run:
-- [ ] Mission Control
-- [ ] Digital Twin Normal
-- [ ] Digital Twin Stress
-- [ ] Thermal Analysis (Status: ✅ COMPLETE)
-- [ ] What-If Normal
-- [ ] What-If Stress
-- [ ] Dataset Explorer
-- [ ] Model Performance
-- [ ] GenAI
-- [ ] VAE
-- [ ] SHAP (Waterfall plot)
-- [ ] LIME (Colored cards)
-- [ ] Global SHAP (Bar chart)
-- [ ] Responsible AI
-- [ ] RAG / Prompt Lab (Relevant response)
-- [ ] RAG / Prompt Lab (Out-of-domain rejection)
-- [ ] AI Agent Stress
+The safety decision pipeline is purely deterministic (rule-based evaluation and calibrated model inferences), ensuring reproducible behavior across runs.
+
+### Repeatability Test Procedure
+1. Navigate to **Mission Control**.
+2. Select **HIGH_LOAD** mode.
+3. Record the following values:
+   - Recommended Action text
+   - Recommended Boost Percentage
+   - Hotspot Temperature
+4. Click **Reset to Baseline**, then select **HIGH_LOAD** again.
+5. Confirm that the exact same observation, triggers, action, and boost are produced.
 
 ---
 
-## 19. TEST RESULT TABLE
+## 7. RECOMMENDED DEMONSTRATION FLOW (10-MINUTE WALKTHROUGH)
 
-Print or copy this blank table to fill manually during your demonstration:
+For presentations, academic reviews, or live evaluations, follow this structured flow:
 
-| Module | Test | Input | Result | PASS/FAIL | Screenshot |
-|--------|------|-------|--------|-----------|------------|
-| Digital Twin | Stress Test | Current: 15A, Amb: 45°C | Pack Max == Max Cell | | |
-| Thermal Analysis | Live Run | NORMAL Profile | Completes 50 steps | | |
-| What-If | Stress Case | Current 15A, Flow 0.005 | Temp spikes significantly | | |
-| XAI | LIME Gen | Default | Cards render cleanly | | |
-| Prompt Lab | Out-of-Domain | "FIFA World Cup" | Rejected by system | | |
-| AI Agent | Stress Eval | Current 15A, Flow 0.010 | Increases cooling | | |
-| AI Agent | Normal Eval | Current 5A, Flow 0.020 | Maintains cooling | | |
-| AI Agent | Determinism | Run Stress 3x | Same result every time | | |
+```text
+1. Mission Control Overview (3 min)
+   ├── Show 24-cell grid, safety bands, and Cell C7 hotspot
+   ├── Switch Scenario: NORMAL → THERMAL_STRESS
+   ├── Adjust Coolant Flow slider (0.010 → 0.040 kg/s)
+   ├── Click "Apply Suggested Cooling" (demonstrate automatic flow boost & hotspot relief)
+   └── Review Deterministic Decision Support card (Observation, Triggers, Rationale)
+
+2. Thermal Analysis Simulation (3 min)
+   ├── Select THERMAL_STRESS profile
+   ├── Click "Start Stream" (watch 50-step ODE progression)
+   ├── Inspect dual Plotly charts (Temperature trend & Failure risk curve)
+   └── Inspect Multi-Horizon Forecast (+1m, +3m, +5m) and Autoencoder MSE
+
+3. What-If Parameter Sandbox (3 min)
+   ├── Perturb sliders (Hotspot Temp ↑, Charge Power ↑, Cooling Health ↓)
+   ├── Highlight Live Parameter Explanation panel updating instantly
+   ├── Click "Run Simulation & Compare" (inspect delta metrics and outcome text)
+   ├── Compare Side-by-Side Thermal Grids (Baseline vs Hypothetical)
+   └── Click "Reset to Baseline"
+
+4. Architecture & Test Validation (1 min)
+   ├── Mention 67 passing automated tests (physics invariants, decision rules, ML)
+   └── Point out System Status badges in the sidebar
+```
+
+---
+
+## 8. VERIFICATION CHECKLIST
+
+Use this checklist during manual runs:
+
+- [ ] Streamlit starts with 0 errors (`streamlit run app/main.py`)
+- [ ] Sidebar displays all 4 system status badges as `ONLINE`
+- [ ] Mission Control: 24-cell grid renders with Cell 7 as hotspot
+- [ ] Mission Control: Coolant slider smoothly adjusts from 0.010 to 0.050 kg/s
+- [ ] Mission Control: "Apply Suggested Cooling" boosts flow and lowers hotspot
+- [ ] Mission Control: "Reset to Baseline" restores 0.020 kg/s and nominal state
+- [ ] Thermal Analysis: "Start Stream" advances 50 steps with live chart updates
+- [ ] Thermal Analysis: Multi-horizon forecast displays +1m, +3m, +5m predictions
+- [ ] What-If Simulator: Sliders update Live Parameter Explanations in real time
+- [ ] What-If Simulator: "Run Simulation & Compare" computes delta percentage points
+- [ ] What-If Simulator: Side-by-side heatmaps render Baseline vs. Hypothetical
+- [ ] What-If Simulator: "Reset to Baseline" resets all 6 sliders cleanly

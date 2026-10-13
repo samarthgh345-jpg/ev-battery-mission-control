@@ -475,17 +475,27 @@ def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, d
         )
 
         flow_sub1, flow_sub2 = st.columns([1.3, 1])
+        FLOW_MIN = 0.010
+        FLOW_MAX = 0.050
+        FLOW_STEP = 0.002
+
         with flow_sub1:
             if "mc_flow_rate_slider_pending" in st.session_state:
-                st.session_state["mc_flow_rate_slider"] = float(st.session_state.pop("mc_flow_rate_slider_pending"))
+                raw_flow = float(st.session_state.pop("mc_flow_rate_slider_pending"))
+                st.session_state["mc_flow_rate_slider"] = max(FLOW_MIN, min(FLOW_MAX, raw_flow))
             elif "mc_flow_rate_slider" not in st.session_state:
-                st.session_state["mc_flow_rate_slider"] = float(sim.coolant_flow)
+                st.session_state["mc_flow_rate_slider"] = max(FLOW_MIN, min(FLOW_MAX, float(sim.coolant_flow)))
+            else:
+                # Safeguard: clamp any persisted session-state value to the valid slider bounds
+                st.session_state["mc_flow_rate_slider"] = max(
+                    FLOW_MIN, min(FLOW_MAX, float(st.session_state["mc_flow_rate_slider"]))
+                )
 
             st.slider(
                 "Coolant Flow Rate (kg/s)",
-                min_value=0.010,
-                max_value=0.040,
-                step=0.002,
+                min_value=FLOW_MIN,
+                max_value=FLOW_MAX,
+                step=FLOW_STEP,
                 format="%.3f",
                 key="mc_flow_rate_slider",
                 on_change=_on_flow_slider_change,
@@ -500,22 +510,23 @@ def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, d
                 res = sim.apply_recommendation(boost_percentage=boost_pct)
                 new_h = sim.get_hotspot_info()["temperature"]
 
-                # Queue slider update for next rerun to avoid modifying instantiated widget
-                st.session_state["mc_flow_rate_slider_pending"] = round(float(res["new_flow"]), 3)
+                # Queue slider update for next rerun, clamping within supported slider bounds
+                capped_flow = max(FLOW_MIN, min(FLOW_MAX, round(float(res["new_flow"]), 3)))
+                st.session_state["mc_flow_rate_slider_pending"] = capped_flow
 
                 # Synchronize features
                 features["cell_temperature_avg"] = round(float(sim.get_pack_summary()["avg_temp"]), 1)
                 features["cell_temperature_max"] = round(float(new_h), 1)
-                features["cooling_system_health"] = max(10.0, min(100.0, round((res["new_flow"] / 0.02) * 74.0, 1)))
+                features["cooling_system_health"] = max(10.0, min(100.0, round((capped_flow / 0.02) * 74.0, 1)))
 
                 st.session_state.mc_recalc_diff = {
                     "old_flow": res["old_flow"],
-                    "new_flow": res["new_flow"],
+                    "new_flow": capped_flow,
                     "old_hotspot": old_h,
                     "new_hotspot": new_h,
                     "delta_temp": new_h - old_h,
                 }
-                st.toast(f"Cooling flow updated to {res['new_flow']:.3f} kg/s (Hotspot: {new_h - old_h:+.1f}°C)", icon="❄️")
+                st.toast(f"Cooling flow updated to {capped_flow:.3f} kg/s (Hotspot: {new_h - old_h:+.1f}°C)", icon="❄️")
                 st.rerun()
 
         if "mc_recalc_diff" in st.session_state:

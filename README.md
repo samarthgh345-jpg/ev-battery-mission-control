@@ -11,7 +11,7 @@ A modern industrial mission control dashboard for Electric Vehicle Battery Therm
 ## 🚀 Key Features
 
 - **Mission Control Console**: Real-time 24-cell (4×6 planar module) thermal grid with color-coded safety bands (Normal <36°C, Moderate 36–42°C, Caution 42–48°C, Critical ≥48°C) and localized hotspot tracking (Cell C7).
-- **Cooling Controls & Quasi-Steady Recalculation**: Adjust liquid coolant mass flow rate (0.010–0.040 kg/s) with immediate quasi-steady convective thermal recalculation, or 1-click **Apply Suggested Cooling**.
+- **Cooling Controls & Quasi-Steady Recalculation**: Adjust liquid coolant mass flow rate (0.010–0.050 kg/s) with immediate quasi-steady convective thermal recalculation, or 1-click **Apply Suggested Cooling**.
 - **Operating Scenario Switching**: Toggle operating profiles (`NORMAL`, `HIGH_LOAD`, `THERMAL_STRESS`) or restore calibrated nominal parameters via **Reset to Baseline**.
 - **Deterministic Thermal AI Decision Support**: Transparent rule-based decision engine (Observation, Reasoning, Prediction, Action) evaluating cell gradients, failure probabilities, and anomaly scores.
 - **Thermal Analysis & Dynamic Simulation**: Continuous lumped-capacitance ODE integration with forward stepping (+5s step, time integration), live temperature trends, and multi-horizon failure forecasts (+1m, +3m, +5m).

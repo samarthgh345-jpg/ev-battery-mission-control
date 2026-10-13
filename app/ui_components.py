@@ -55,6 +55,18 @@ def page_header(title: str, subtitle: str = None, badge_label: str = "SIMULATION
     st.markdown(html, unsafe_allow_html=True)
 
 
+def section_header(title: str):
+    """
+    Render a clean section header.
+    """
+    html = clean_html(f"""
+<div style="font-size: 14px; font-weight: 700; color: #172033; margin: 16px 0 8px 0; letter-spacing: -0.01em;">
+    {title}
+</div>
+""")
+    st.markdown(html, unsafe_allow_html=True)
+
+
 def metric_card(label: str, value: str, suffix: str = "", help_text: str = None, color: str = "#326CE5", subcaption: str = None):
     """
     Render a clean white metric card with uppercase label, bold colored value,

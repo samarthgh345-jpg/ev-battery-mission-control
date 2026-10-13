@@ -29,19 +29,37 @@ def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, d
 
     baseline = get_default_features()
 
-    # ── Initialize session state slider keys if not present ────
+    # ── Initialize session state slider keys if not present & clamp to bounds ────
     if "wi_slider_avg" not in st.session_state:
         st.session_state.wi_slider_avg = float(baseline["cell_temperature_avg"])
+    else:
+        st.session_state.wi_slider_avg = max(15.0, min(60.0, float(st.session_state.wi_slider_avg)))
+
     if "wi_slider_max" not in st.session_state:
         st.session_state.wi_slider_max = float(baseline["cell_temperature_max"])
+    else:
+        st.session_state.wi_slider_max = max(15.0, min(85.0, float(st.session_state.wi_slider_max)))
+
     if "wi_slider_power" not in st.session_state:
         st.session_state.wi_slider_power = float(baseline["average_charge_power_kw"])
+    else:
+        st.session_state.wi_slider_power = max(0.0, min(200.0, float(st.session_state.wi_slider_power)))
+
     if "wi_slider_res" not in st.session_state:
         st.session_state.wi_slider_res = float(baseline["internal_resistance"])
+    else:
+        st.session_state.wi_slider_res = max(0.2, min(6.0, float(st.session_state.wi_slider_res)))
+
     if "wi_slider_cool" not in st.session_state:
         st.session_state.wi_slider_cool = float(baseline["cooling_system_health"])
+    else:
+        st.session_state.wi_slider_cool = max(0.0, min(100.0, float(st.session_state.wi_slider_cool)))
+
     if "wi_slider_soc" not in st.session_state:
         st.session_state.wi_slider_soc = float(baseline["state_of_charge"])
+    else:
+        st.session_state.wi_slider_soc = max(5.0, min(100.0, float(st.session_state.wi_slider_soc)))
+
     if "wi_has_run" not in st.session_state:
         st.session_state.wi_has_run = False
 
@@ -64,7 +82,6 @@ def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, d
             "Average Cell Temperature (°C)",
             min_value=15.0,
             max_value=60.0,
-            value=float(st.session_state.get("wi_slider_avg", baseline["cell_temperature_avg"])),
             step=0.5,
             key="wi_slider_avg",
             help="Baseline nominal value: 21.0 °C",
@@ -73,7 +90,6 @@ def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, d
             "Maximum Hotspot Temperature (°C)",
             min_value=15.0,
             max_value=85.0,
-            value=float(st.session_state.get("wi_slider_max", baseline["cell_temperature_max"])),
             step=0.5,
             key="wi_slider_max",
             help="Must be ≥ Average Cell Temperature. Baseline nominal value: 28.5 °C",
@@ -82,7 +98,6 @@ def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, d
             "Average Charge Power (kW)",
             min_value=0.0,
             max_value=200.0,
-            value=float(st.session_state.get("wi_slider_power", baseline["average_charge_power_kw"])),
             step=5.0,
             key="wi_slider_power",
             help="Baseline nominal value: 40.0 kW",
@@ -93,7 +108,6 @@ def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, d
             "Internal Resistance (mΩ)",
             min_value=0.2,
             max_value=6.0,
-            value=float(st.session_state.get("wi_slider_res", baseline["internal_resistance"])),
             step=0.05,
             key="wi_slider_res",
             help="Baseline nominal value: 0.53 mΩ",
@@ -102,7 +116,6 @@ def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, d
             "Cooling System Health (%)",
             min_value=0.0,
             max_value=100.0,
-            value=float(st.session_state.get("wi_slider_cool", baseline["cooling_system_health"])),
             step=1.0,
             key="wi_slider_cool",
             help="Baseline nominal value: 74.0 %",
@@ -111,7 +124,6 @@ def render(xgb_model, ae_model_artifacts, mlp_model, shap_explainer, metadata, d
             "State of Charge (%)",
             min_value=5.0,
             max_value=100.0,
-            value=float(st.session_state.get("wi_slider_soc", baseline["state_of_charge"])),
             step=1.0,
             key="wi_slider_soc",
             help="Baseline nominal value: 55.0 %",

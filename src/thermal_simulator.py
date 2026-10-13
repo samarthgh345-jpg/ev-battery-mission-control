@@ -146,16 +146,16 @@ class BatteryPackThermalSimulator:
                     t_neighbor = self.temperatures[neighbor_idx]
                     q_cond += self.INTER_CELL_CONDUCTANCE * (t_neighbor - t_cell)
 
-                # 5. Non-linear exothermic onset if exceeding threshold
+                # 5. Non-linear exothermic onset if exceeding threshold (capped to prevent numerical overflow)
                 q_exo = 0.0
                 if t_cell >= self.RUNAWAY_THRESHOLD_TEMP:
-                    delta_t = t_cell - self.RUNAWAY_THRESHOLD_TEMP
+                    delta_t = min(32.0, max(0.0, t_cell - self.RUNAWAY_THRESHOLD_TEMP))
                     q_exo = 4.0 * np.exp(0.25 * delta_t)
 
                 net_heat_flow = q_joule + q_exo + q_cond - q_cool - q_amb
                 d_temps[i] = (net_heat_flow / self.THERMAL_CAPACITANCE) * actual_sub_dt
 
-            self.temperatures += d_temps
+            self.temperatures = np.clip(self.temperatures + d_temps, -40.0, 500.0)
 
         self.time_elapsed_seconds += dt_seconds
         self._record_history()
